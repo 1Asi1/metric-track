@@ -47,6 +47,7 @@ func (m memoryStore) Get(ctx context.Context) (models.MemStorage, error) {
 
 	return result, nil
 }
+
 func (m memoryStore) Update(ctx context.Context, data models.MemStorage) error {
 	file, err := os.OpenFile(m.Path, os.O_WRONLY, 0666)
 	if err != nil {

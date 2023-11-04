@@ -17,7 +17,7 @@ func (h V1) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uriData := strings.Split(r.URL.Path, "/")
-	if len(uriData) == 0 || len(uriData) != 5 {
+	if len(uriData) == 0 || len(uriData) != 5 { //поменять условия типа >5
 		http.Error(w, errors.New("invalid request data error").Error(), http.StatusNotFound)
 		return
 	}
@@ -42,7 +42,7 @@ func (h V1) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.Service.UpdateMetric(r.Context(), req); err != nil {
+	if err = h.Service.UpdateMetric(r.Context(), req); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

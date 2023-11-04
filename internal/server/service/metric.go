@@ -55,7 +55,7 @@ func (s service) UpdateMetric(ctx context.Context, req Request) error {
 	if req.Metric == Gauge {
 		value.Gauge = req.Type.Gauge
 	} else {
-		value.Counter += req.Type.Counter
+		value.Counter = req.Type.Counter
 	}
 	data.Metrics[req.Name] = value
 
