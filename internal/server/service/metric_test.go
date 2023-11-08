@@ -4,34 +4,33 @@ import (
 	"context"
 	"testing"
 
-	"github.com/1Asi1/metric-track.git/internal/server/models"
+	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
 	"github.com/stretchr/testify/assert"
 )
 
-type storeTest interface {
-	Get(context.Context) (models.MemStorage, error)
-	Update(context.Context, models.MemStorage) error
-}
+//type storeTest interface {
+//	Get(context.Context) (map[string]Type, error)
+//	Update(context.Context, map[string]Type) error
+//}
 
 type store struct {
+	metric map[string]memory.Type
 }
 
-func new() storeTest {
-	return store{}
+func (s store) Get(ctx context.Context) (map[string]memory.Type, error) {
+	return s.metric, nil
 }
 
-func (s store) Get(context.Context) (models.MemStorage, error) {
-	var data models.MemStorage
-	data.Metrics = map[string]models.Type{}
-	return data, nil
-}
-
-func (s store) Update(context.Context, models.MemStorage) error {
+func (s store) Update(ctx context.Context, m map[string]memory.Type) error {
 	return nil
 }
 
+func newStoreTest() memory.Store {
+	return store{metric: make(map[string]memory.Type)}
+}
+
 func Test_service_UpdateMetric(t *testing.T) {
-	st := new()
+	st := newStoreTest()
 	srv := service{Store: st}
 
 	type args struct {

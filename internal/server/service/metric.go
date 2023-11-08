@@ -2,8 +2,14 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
+)
+
+var (
+	ErrNotFound = errors.New("name metric not found error")
 )
 
 const (
@@ -14,10 +20,6 @@ const (
 var TypeMetric = map[string]struct{}{
 	Gauge:   {},
 	Counter: {},
-}
-
-type MemStorage struct {
-	Metrics map[string]Type
 }
 
 type Type struct {
@@ -32,7 +34,9 @@ type Request struct {
 }
 
 type Service interface {
-	UpdateMetric(context.Context, Request) error
+	GetMetric(ctx context.Context) (string, error)
+	GetOneMetric(ctx context.Context, metric, name string) (string, error)
+	UpdateMetric(ctx context.Context, req Request) error
 }
 
 type service struct {
@@ -45,19 +49,47 @@ func New(store memory.Store) Service {
 	}
 }
 
+func (s service) GetMetric(ctx context.Context) (string, error) {
+	data, err := s.Store.Get(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	res := s.parseToHTML(data)
+
+	return res, nil
+}
+
+func (s service) GetOneMetric(ctx context.Context, metric, name string) (string, error) {
+	data, err := s.Store.Get(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	if _, ok := data[name]; !ok {
+		return "", ErrNotFound
+	}
+
+	if metric == Gauge {
+		return fmt.Sprintf("%.3f", data[name].Gauge), nil
+	}
+
+	return fmt.Sprintf("%d", data[name].Counter), nil
+}
+
 func (s service) UpdateMetric(ctx context.Context, req Request) error {
 	data, err := s.Store.Get(ctx)
 	if err != nil {
 		return err
 	}
 
-	value := data.Metrics[req.Name]
+	value := data[req.Name]
 	if req.Metric == Gauge {
 		value.Gauge = req.Type.Gauge
 	} else {
-		value.Counter = req.Type.Counter
+		value.Counter += req.Type.Counter
 	}
-	data.Metrics[req.Name] = value
+	data[req.Name] = value
 
 	err = s.Store.Update(ctx, data)
 	if err != nil {
@@ -65,4 +97,36 @@ func (s service) UpdateMetric(ctx context.Context, req Request) error {
 	}
 
 	return nil
+}
+
+func (s service) parseToHTML(data map[string]memory.Type) string {
+	var insert string
+
+	for k, v := range data {
+		insert += fmt.Sprintf(`
+	<p><b>Имя: %s</p>
+	<p><b>Guage: %f</p>
+	<p><b>Counter: %d</p>`,
+			k,
+			v.Gauge,
+			v.Counter) +
+			"\n_______________\n"
+	}
+
+	res := fmt.Sprintf(`
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+	    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+	    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	    <meta charset="UTF-8">
+	    <title>Metrics</title>
+	</head>
+	<body>
+	%s
+	</body>
+	</html>`,
+		insert)
+
+	return res
 }

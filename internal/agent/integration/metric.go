@@ -9,6 +9,7 @@ import (
 	"github.com/1Asi1/metric-track.git/internal/agent/service"
 	"github.com/1Asi1/metric-track.git/internal/config"
 	s "github.com/1Asi1/metric-track.git/internal/server/service"
+	"github.com/go-resty/resty/v2"
 )
 
 type Client interface {
@@ -18,25 +19,27 @@ type Client interface {
 type client struct {
 	cfg     config.Config
 	service service.Service
-	HTTP    *http.Client
+	HTTP    *resty.Client
 }
 
 func New(cfg config.Config, s service.Service) Client {
 	return client{
 		cfg:     cfg,
 		service: s,
-		HTTP:    &http.Client{},
+		HTTP:    resty.New(),
 	}
 }
 
 func (c client) SendMetricPeriodic() {
 	var res service.Metric
+	var count service.Counter
 	var err error
 	for i := 1; ; i++ {
 		if i%c.cfg.PollInterval == 0 {
 			res = c.service.GetMetric()
 
-			res.PollCount = service.Counter(i)
+			count++
+			res.PollCount = count
 		}
 
 		if i%c.cfg.ReportInterval == 0 {
@@ -49,6 +52,8 @@ func (c client) SendMetricPeriodic() {
 			if err = c.sendToServerCounter(res); err != nil {
 				fmt.Println(err)
 			}
+
+			count = 0
 		}
 
 		time.Sleep(1 * time.Second)
@@ -76,23 +81,16 @@ func (c client) sendToServerCounter(data service.Metric) error {
 }
 
 func (c *client) send(url string) error {
-	req, err := http.NewRequest(http.MethodPost, url, nil)
+	res, err := c.HTTP.R().SetHeader("Content-Type", "text/plain; charset=utf-8").Post(url)
 	if err != nil {
 		return err
 	}
 
-	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
-
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return err
-	}
-
-	if resp.StatusCode != http.StatusOK {
+	if res.StatusCode() != http.StatusOK {
 		return errors.New("status not ok")
 	}
 
-	err = resp.Body.Close()
+	err = res.RawBody().Close()
 	if err != nil {
 		return err
 	}

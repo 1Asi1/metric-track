@@ -5,24 +5,63 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/1Asi1/metric-track.git/internal/server/service"
+	"github.com/go-chi/chi/v5"
 )
 
+func (h V1) GetMetric(w http.ResponseWriter, r *http.Request) {
+	res, err := h.service.GetMetric(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, res)
+}
+
+func (h V1) GetOneMetric(w http.ResponseWriter, r *http.Request) {
+	m := chi.URLParam(r, "metric")
+	n := chi.URLParam(r, "name")
+
+	if _, ok := service.TypeMetric[m]; !ok {
+		http.Error(w, errors.New("invalid request data error").Error(), http.StatusBadRequest)
+		return
+	}
+
+	if n == "" {
+		http.Error(w, errors.New("invalid request value error").Error(), http.StatusBadRequest)
+		return
+	}
+
+	res, err := h.service.GetOneMetric(r.Context(), m, n)
+	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, res)
+}
+
 func (h V1) UpdateMetric(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, errors.New("validate request method error").Error(), http.StatusBadRequest)
+	m := chi.URLParam(r, "metric")
+
+	if _, ok := service.TypeMetric[m]; !ok {
+		http.Error(w, errors.New("invalid request data error").Error(), http.StatusBadRequest)
 		return
 	}
 
-	uriData := strings.Split(r.URL.Path, "/")
-	if len(uriData) == 0 || len(uriData) != 5 { //поменять условия типа >5
-		http.Error(w, errors.New("invalid request data error").Error(), http.StatusNotFound)
-		return
-	}
-
-	f, err := strconv.ParseFloat(uriData[4], 64)
+	v := chi.URLParam(r, "value")
+	f, err := strconv.ParseFloat(v, 64)
 	if err != nil {
 		http.Error(w, errors.New("invalid request value error").Error(), http.StatusBadRequest)
 		return
@@ -31,9 +70,10 @@ func (h V1) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	var value service.Type
 	value.Gauge = f
 	value.Counter = int64(f)
+	n := chi.URLParam(r, "name")
 	req := service.Request{
-		Metric: uriData[2],
-		Name:   uriData[3],
+		Metric: m,
+		Name:   n,
 		Type:   value,
 	}
 
@@ -42,12 +82,12 @@ func (h V1) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = h.Service.UpdateMetric(r.Context(), req); err != nil {
+	if err = h.service.UpdateMetric(r.Context(), req); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, req)
+	fmt.Fprint(w, v)
 }

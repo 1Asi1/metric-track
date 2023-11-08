@@ -9,17 +9,18 @@ import (
 	"github.com/1Asi1/metric-track.git/internal/server/service"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest/v1"
+	"github.com/go-chi/chi/v5"
 )
 
 type APIServer struct {
 	cfg config.Config
-	Mux *http.ServeMux
+	Mux *chi.Mux
 }
 
 func New(cfg config.Config) APIServer {
 	return APIServer{
 		cfg: cfg,
-		Mux: http.NewServeMux(),
+		Mux: chi.NewRouter(),
 	}
 }
 
