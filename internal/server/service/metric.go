@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
 )
@@ -71,7 +72,8 @@ func (s service) GetOneMetric(ctx context.Context, metric, name string) (string,
 	}
 
 	if metric == Gauge {
-		return fmt.Sprintf("%.3f", data[name].Gauge), nil
+		frmt := strconv.FormatFloat(data[name].Gauge, 'f', -1, 64)
+		return frmt, nil
 	}
 
 	return fmt.Sprintf("%d", data[name].Counter), nil

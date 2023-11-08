@@ -61,7 +61,7 @@ func (c client) SendMetricPeriodic() {
 }
 
 func (c client) sendToServerGauge(data service.Metric) error {
-	url := fmt.Sprintf("%s/update/%s/%s/%.6f", c.cfg.MetricServerAddr, s.Gauge, "Name", data.RandomValue)
+	url := fmt.Sprintf("http://%s/update/%s/%s/%f", c.cfg.MetricServerAddr, s.Gauge, "Name", data.RandomValue)
 
 	if err := c.send(url); err != nil {
 		return fmt.Errorf("sendToServerGauge: %v", err)
@@ -71,7 +71,7 @@ func (c client) sendToServerGauge(data service.Metric) error {
 }
 
 func (c client) sendToServerCounter(data service.Metric) error {
-	url := fmt.Sprintf("%s/update/%s/%s/%d", c.cfg.MetricServerAddr, s.Counter, "Name", data.PollCount)
+	url := fmt.Sprintf("http://%s/update/%s/%s/%d", c.cfg.MetricServerAddr, s.Counter, "Name", data.PollCount)
 
 	if err := c.send(url); err != nil {
 		return fmt.Errorf("sendToServerCounter: %v", err)

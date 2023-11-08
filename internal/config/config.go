@@ -8,7 +8,6 @@ import (
 type Config struct {
 	PollInterval     int
 	ReportInterval   int
-	MetricServerPort string
 	MetricServerAddr string
 }
 
@@ -23,14 +22,9 @@ func New() (Config, error) {
 		reportInterval = "10"
 	}
 
-	metricServerPort := os.Getenv("")
-	if metricServerPort == "" {
-		metricServerPort = "8080"
-	}
-
 	metricServerAddr := os.Getenv("")
 	if metricServerAddr == "" {
-		metricServerAddr = "http://localhost:" + metricServerPort
+		metricServerAddr = "http://localhost:8080"
 	}
 
 	pI, err := strconv.Atoi(pollInterval)
@@ -46,7 +40,6 @@ func New() (Config, error) {
 	return Config{
 			PollInterval:     pI,
 			ReportInterval:   rI,
-			MetricServerPort: ":" + metricServerPort,
 			MetricServerAddr: metricServerAddr,
 		},
 		nil

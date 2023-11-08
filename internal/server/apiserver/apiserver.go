@@ -30,8 +30,8 @@ func (s *APIServer) Run() {
 	route := rest.New(s.Mux, metricS)
 	v1.New(route)
 
-	log.Println("server start: http://127.0.0.1:8080")
-	if err := http.ListenAndServe(s.cfg.MetricServerPort, route.Mux); err != nil {
+	log.Printf("server start: http://%s\n", s.cfg.MetricServerAddr)
+	if err := http.ListenAndServe(s.cfg.MetricServerAddr, route.Mux); err != nil {
 		log.Panicf("http.ListenAndServe panic: %v", err)
 	}
 }
