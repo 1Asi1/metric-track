@@ -1,27 +1,20 @@
 package main
 
 import (
-	"flag"
-	"fmt"
+	"log"
 
 	"github.com/1Asi1/metric-track.git/internal/config"
 	"github.com/1Asi1/metric-track.git/internal/server/apiserver"
 )
 
-var host string
-
-func parseFlag() {
-	flag.StringVar(&host, "a", "localhost:8080", "address and port to run server")
-	flag.Parse()
-}
 func main() {
 	cfg, err := config.New()
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 
-	parseFlag()
-	cfg.MetricServerAddr = host
 	server := apiserver.New(cfg)
-	server.Run()
+	if err = server.Run(); err != nil {
+		log.Fatalf("http.ListenAndServe panic: %v", err)
+	}
 }

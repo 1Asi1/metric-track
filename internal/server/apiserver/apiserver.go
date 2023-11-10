@@ -14,24 +14,26 @@ import (
 
 type APIServer struct {
 	cfg config.Config
-	Mux *chi.Mux
+	mux *chi.Mux
 }
 
 func New(cfg config.Config) APIServer {
 	return APIServer{
 		cfg: cfg,
-		Mux: chi.NewRouter(),
+		mux: chi.NewRouter(),
 	}
 }
 
-func (s *APIServer) Run() {
-	memoryStore := memory.New("internal/server/repository/memory/store.json")
+func (s *APIServer) Run() error {
+	memoryStore := memory.New()
 	metricS := service.New(memoryStore)
-	route := rest.New(s.Mux, metricS)
+	route := rest.New(s.mux, metricS)
 	v1.New(route)
 
 	log.Printf("server start: http://%s\n", s.cfg.MetricServerAddr)
 	if err := http.ListenAndServe(s.cfg.MetricServerAddr, route.Mux); err != nil {
-		log.Panicf("http.ListenAndServe panic: %v", err)
+		return err
 	}
+
+	return nil
 }

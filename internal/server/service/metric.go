@@ -2,15 +2,10 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
-)
-
-var (
-	ErrNotFound = errors.New("name metric not found error")
 )
 
 const (
@@ -62,21 +57,17 @@ func (s service) GetMetric(ctx context.Context) (string, error) {
 }
 
 func (s service) GetOneMetric(ctx context.Context, metric, name string) (string, error) {
-	data, err := s.Store.Get(ctx)
+	data, err := s.Store.GetOne(ctx, name)
 	if err != nil {
-		return "", err
-	}
-
-	if _, ok := data[name]; !ok {
-		return "", ErrNotFound
+		return "", fmt.Errorf("metric name: %s, error:%w", name, err)
 	}
 
 	if metric == Gauge {
-		frmt := strconv.FormatFloat(data[name].Gauge, 'f', -1, 64)
+		frmt := strconv.FormatFloat(data.Gauge, 'f', -1, 64)
 		return frmt, nil
 	}
 
-	return fmt.Sprintf("%d", data[name].Counter), nil
+	return strconv.FormatInt(data.Counter, 10), nil
 }
 
 func (s service) UpdateMetric(ctx context.Context, req Request) error {

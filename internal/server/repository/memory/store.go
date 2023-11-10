@@ -2,14 +2,14 @@ package memory
 
 import (
 	"context"
+	"errors"
 )
 
-type Store interface {
-	Get(context.Context) (map[string]Type, error)
-	Update(context.Context, map[string]Type) error
-}
+var (
+	ErrNotFound = errors.New("name metric not found error")
+)
 
-type memoryStore struct {
+type Store struct {
 	metric map[string]Type
 }
 
@@ -18,17 +18,25 @@ type Type struct {
 	Counter int64
 }
 
-func New(path string) Store {
-	return memoryStore{
+func New() Store {
+	return Store{
 		make(map[string]Type),
 	}
 }
 
-func (m memoryStore) Get(ctx context.Context) (map[string]Type, error) {
+func (m Store) Get(ctx context.Context) (map[string]Type, error) {
 	return m.metric, nil
 }
 
-func (m memoryStore) Update(ctx context.Context, data map[string]Type) error {
+func (m Store) GetOne(ctx context.Context, name string) (Type, error) {
+	if _, ok := m.metric[name]; !ok {
+		return Type{}, ErrNotFound
+	}
+
+	return m.metric[name], nil
+}
+
+func (m Store) Update(ctx context.Context, data map[string]Type) error {
 	for k, v := range data {
 		m.metric[k] = v
 	}

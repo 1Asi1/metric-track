@@ -8,29 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-//type storeTest interface {
-//	Get(context.Context) (map[string]Type, error)
-//	Update(context.Context, map[string]Type) error
-//}
-
-type store struct {
-	metric map[string]memory.Type
-}
-
-func (s store) Get(ctx context.Context) (map[string]memory.Type, error) {
-	return s.metric, nil
-}
-
-func (s store) Update(ctx context.Context, m map[string]memory.Type) error {
-	return nil
-}
-
-func newStoreTest() memory.Store {
-	return store{metric: make(map[string]memory.Type)}
-}
-
 func Test_service_UpdateMetric(t *testing.T) {
-	st := newStoreTest()
+	st := memory.New()
 	srv := service{Store: st}
 
 	type args struct {

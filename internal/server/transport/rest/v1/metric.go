@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
 	"github.com/1Asi1/metric-track.git/internal/server/service"
 	"github.com/go-chi/chi/v5"
 )
@@ -38,7 +39,7 @@ func (h V1) GetOneMetric(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.service.GetOneMetric(r.Context(), m, n)
 	if err != nil {
-		if errors.Is(err, service.ErrNotFound) {
+		if errors.Is(err, memory.ErrNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}

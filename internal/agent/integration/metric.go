@@ -3,6 +3,7 @@ package integration
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -12,55 +13,47 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type Client interface {
-	SendMetricPeriodic()
-}
-
-type client struct {
+type Client struct {
 	cfg     config.Config
 	service service.Service
-	HTTP    *resty.Client
+	http    *resty.Client
 }
 
-func New(cfg config.Config, s service.Service) Client {
-	return client{
+func New(cfg config.Config, s service.Service) *Client {
+	return &Client{
 		cfg:     cfg,
 		service: s,
-		HTTP:    resty.New(),
+		http:    resty.New(),
 	}
 }
 
-func (c client) SendMetricPeriodic() {
-	var res service.Metric
+func (c *Client) SendMetricPeriodic() {
 	var count service.Counter
-	var err error
-	for i := 1; ; i++ {
-		if i%c.cfg.PollInterval == 0 {
+	var res service.Metric
+	tickerPool := time.NewTicker(c.cfg.PollInterval)
+	tickerRep := time.NewTicker(c.cfg.ReportInterval)
+	for {
+		select {
+		case <-tickerPool.C:
 			res = c.service.GetMetric()
 
 			count++
 			res.PollCount = count
-		}
-
-		if i%c.cfg.ReportInterval == 0 {
-			fmt.Printf("stat:  [value: %+v | count: %+v]\n", res.RandomValue, res.PollCount)
-
-			if err = c.sendToServerGauge(res); err != nil {
-				fmt.Println(err)
+		case <-tickerRep.C:
+			if err := c.sendToServerGauge(res); err != nil {
+				log.Println(err)
 			}
 
-			if err = c.sendToServerCounter(res); err != nil {
-				fmt.Println(err)
+			if err := c.sendToServerCounter(res); err != nil {
+				log.Println(err)
 			}
 
 			count = 0
 		}
-
-		time.Sleep(1 * time.Second)
 	}
 }
 
-func (c client) sendToServerGauge(data service.Metric) error {
+func (c *Client) sendToServerGauge(data service.Metric) error {
 	url := fmt.Sprintf("http://%s/update/%s/%s/%f", c.cfg.MetricServerAddr, s.Gauge, "Name", data.RandomValue)
 
 	if err := c.send(url); err != nil {
@@ -70,7 +63,7 @@ func (c client) sendToServerGauge(data service.Metric) error {
 	return nil
 }
 
-func (c client) sendToServerCounter(data service.Metric) error {
+func (c *Client) sendToServerCounter(data service.Metric) error {
 	url := fmt.Sprintf("http://%s/update/%s/%s/%d", c.cfg.MetricServerAddr, s.Counter, "Name", data.PollCount)
 
 	if err := c.send(url); err != nil {
@@ -80,19 +73,15 @@ func (c client) sendToServerCounter(data service.Metric) error {
 	return nil
 }
 
-func (c *client) send(url string) error {
-	res, err := c.HTTP.R().SetHeader("Content-Type", "text/plain; charset=utf-8").Post(url)
+func (c *Client) send(url string) error {
+	res, err := c.http.R().SetHeader("Content-Type", "text/plain; charset=utf-8").Post(url)
 	if err != nil {
 		return err
 	}
+	defer res.RawBody().Close()
 
 	if res.StatusCode() != http.StatusOK {
-		return errors.New("status not ok")
-	}
-
-	err = res.RawBody().Close()
-	if err != nil {
-		return err
+		return fmt.Errorf("error: %w status: %d", errors.New("status not ok"), res.StatusCode())
 	}
 
 	return nil
