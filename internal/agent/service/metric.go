@@ -11,9 +11,8 @@ type Gauge float64
 type Counter int64
 
 type Metric struct {
-	runtime.MemStats
-	PollCount   Counter
-	RandomValue Gauge
+	Type      map[string]any
+	PollCount Counter
 }
 
 type Service interface {
@@ -31,11 +30,39 @@ func New(cfg config.Config) Service {
 }
 
 func (s service) GetMetric() Metric {
-	var m Metric
-	memStat := &(m).MemStats
-	runtime.ReadMemStats(memStat)
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
 
-	m.RandomValue = Gauge(rand.ExpFloat64())
+	var res = map[string]any{
+		"Alloc":         m.Alloc,
+		"BuckHashSys":   m.BuckHashSys,
+		"Frees":         m.Frees,
+		"GCCPUFraction": m.GCCPUFraction,
+		"GCSys":         m.GCSys,
+		"HeapAlloc":     m.HeapAlloc,
+		"HeapIdle":      m.HeapIdle,
+		"HeapInuse":     m.HeapInuse,
+		"HeapObjects":   m.HeapObjects,
+		"HeapReleased":  m.HeapReleased,
+		"HeapSys":       m.HeapSys,
+		"LastGC":        m.LastGC,
+		"Lookups":       m.Lookups,
+		"MCacheInuse":   m.MCacheInuse,
+		"MCacheSys":     m.MCacheSys,
+		"MSpanInuse":    m.MSpanInuse,
+		"MSpanSys":      m.MSpanSys,
+		"Mallocs":       m.Mallocs,
+		"NextGC":        m.NextGC,
+		"NumForcedGC":   m.NumForcedGC,
+		"NumGC":         m.NumGC,
+		"OtherSys":      m.OtherSys,
+		"PauseTotalNs":  m.PauseTotalNs,
+		"StackInuse":    m.StackInuse,
+		"StackSys":      m.StackSys,
+		"Sys":           m.Sys,
+		"TotalAlloc":    m.TotalAlloc,
+		"RandomValue":   Gauge(rand.ExpFloat64()),
+	}
 
-	return m
+	return Metric{Type: res}
 }

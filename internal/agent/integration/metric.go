@@ -40,12 +40,15 @@ func (c *Client) SendMetricPeriodic() {
 			count++
 			res.PollCount = count
 		case <-tickerRep.C:
-			if err := c.sendToServerGauge(res); err != nil {
-				log.Println(err)
-			}
 
-			if err := c.sendToServerCounter(res); err != nil {
-				log.Println(err)
+			for k, v := range res.Type {
+				if err := c.sendToServerGauge(k, v); err != nil {
+					log.Println(err)
+				}
+
+				if err := c.sendToServerCounter(k, res.PollCount); err != nil {
+					log.Println(err)
+				}
 			}
 
 			count = 0
@@ -53,8 +56,8 @@ func (c *Client) SendMetricPeriodic() {
 	}
 }
 
-func (c *Client) sendToServerGauge(data service.Metric) error {
-	url := fmt.Sprintf("http://%s/update/%s/%s/%f", c.cfg.MetricServerAddr, s.Gauge, "Name", data.RandomValue)
+func (c *Client) sendToServerGauge(name string, value any) error {
+	url := fmt.Sprintf("http://%s/update/%s/%s/%v", c.cfg.MetricServerAddr, s.Gauge, name, value)
 
 	if err := c.send(url); err != nil {
 		return fmt.Errorf("sendToServerGauge: %v", err)
@@ -63,8 +66,8 @@ func (c *Client) sendToServerGauge(data service.Metric) error {
 	return nil
 }
 
-func (c *Client) sendToServerCounter(data service.Metric) error {
-	url := fmt.Sprintf("http://%s/update/%s/%s/%d", c.cfg.MetricServerAddr, s.Counter, "Name", data.PollCount)
+func (c *Client) sendToServerCounter(name string, value any) error {
+	url := fmt.Sprintf("http://%s/update/%s/%s/%d", c.cfg.MetricServerAddr, s.Counter, name, value)
 
 	if err := c.send(url); err != nil {
 		return fmt.Errorf("sendToServerCounter: %v", err)

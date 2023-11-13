@@ -1,7 +1,6 @@
 package service
 
 import (
-	"runtime"
 	"testing"
 
 	"github.com/1Asi1/metric-track.git/internal/config"
@@ -25,12 +24,9 @@ func Test_service_GetMetric(t *testing.T) {
 				cfg: cfg,
 			}
 
-			m := &(tt.want).MemStats
-			runtime.ReadMemStats(m)
-
 			data := s.GetMetric()
 
-			assert.NotEqual(t, 0, data.RandomValue)
+			assert.NotEqual(t, 0, data.Type["RandomValue"])
 		})
 	}
 }
