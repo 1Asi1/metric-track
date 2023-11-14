@@ -15,21 +15,17 @@ type Metric struct {
 	PollCount Counter
 }
 
-type Service interface {
-	GetMetric() Metric
-}
-
-type service struct {
+type Service struct {
 	cfg config.Config
 }
 
 func New(cfg config.Config) Service {
-	return service{
+	return Service{
 		cfg: cfg,
 	}
 }
 
-func (s service) GetMetric() Metric {
+func (s Service) GetMetric() Metric {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 

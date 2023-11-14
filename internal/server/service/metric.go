@@ -29,23 +29,17 @@ type Request struct {
 	Type   Type
 }
 
-type Service interface {
-	GetMetric(ctx context.Context) (string, error)
-	GetOneMetric(ctx context.Context, metric, name string) (string, error)
-	UpdateMetric(ctx context.Context, req Request) error
-}
-
-type service struct {
+type Service struct {
 	Store memory.Store
 }
 
 func New(store memory.Store) Service {
-	return service{
+	return Service{
 		Store: store,
 	}
 }
 
-func (s service) GetMetric(ctx context.Context) (string, error) {
+func (s Service) GetMetric(ctx context.Context) (string, error) {
 	data, err := s.Store.Get(ctx)
 	if err != nil {
 		return "", err
@@ -56,7 +50,7 @@ func (s service) GetMetric(ctx context.Context) (string, error) {
 	return res, nil
 }
 
-func (s service) GetOneMetric(ctx context.Context, metric, name string) (string, error) {
+func (s Service) GetOneMetric(ctx context.Context, metric, name string) (string, error) {
 	data, err := s.Store.GetOne(ctx, name)
 	if err != nil {
 		return "", fmt.Errorf("metric name: %s, error:%w", name, err)
@@ -70,7 +64,7 @@ func (s service) GetOneMetric(ctx context.Context, metric, name string) (string,
 	return strconv.FormatInt(data.Counter, 10), nil
 }
 
-func (s service) UpdateMetric(ctx context.Context, req Request) error {
+func (s Service) UpdateMetric(ctx context.Context, req Request) error {
 	data, err := s.Store.Get(ctx)
 	if err != nil {
 		return err
@@ -92,7 +86,7 @@ func (s service) UpdateMetric(ctx context.Context, req Request) error {
 	return nil
 }
 
-func (s service) parseToHTML(data map[string]memory.Type) string {
+func (s Service) parseToHTML(data map[string]memory.Type) string {
 	var insert string
 
 	for k, v := range data {

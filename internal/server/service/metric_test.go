@@ -10,7 +10,7 @@ import (
 
 func Test_service_UpdateMetric(t *testing.T) {
 	st := memory.New()
-	srv := service{Store: st}
+	srv := Service{Store: st}
 
 	type args struct {
 		ctx context.Context

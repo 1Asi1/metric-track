@@ -1,7 +1,6 @@
 package integration
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -84,7 +83,7 @@ func (c *Client) send(url string) error {
 	defer res.RawBody().Close()
 
 	if res.StatusCode() != http.StatusOK {
-		return fmt.Errorf("error: %w status: %d", errors.New("status not ok"), res.StatusCode())
+		return fmt.Errorf("expected status %d, got: %d", http.StatusOK, res.StatusCode())
 	}
 
 	return nil

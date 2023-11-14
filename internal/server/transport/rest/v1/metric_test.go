@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
 	"github.com/1Asi1/metric-track.git/internal/server/service"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest"
 	"github.com/go-chi/chi/v5"
@@ -21,32 +22,14 @@ type storeTest interface {
 	UpdateMetric(context.Context, service.Request) error
 }
 
-type store struct {
-}
-
-func new() storeTest {
-	return store{}
-}
-
-func (s store) GetMetric(ctx context.Context) (string, error) {
-	return "", nil
-}
-
-func (s store) GetOneMetric(ctx context.Context, metric, name string) (string, error) {
-	return "", nil
-}
-
-func (s store) UpdateMetric(context.Context, service.Request) error {
-	return nil
-}
-
 func TestV1_UpdateMetric(t *testing.T) {
-	st := new()
+	st := memory.New()
+	se := service.New(st)
 
 	router := chi.NewRouter()
 	h := rest.Handler{
 		Mux:     router,
-		Service: st}
+		Service: se}
 	New(h)
 
 	s := httptest.NewServer(router)
