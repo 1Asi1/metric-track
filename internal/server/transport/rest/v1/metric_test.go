@@ -1,10 +1,10 @@
 package v1
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
@@ -12,19 +12,28 @@ import (
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-resty/resty/v2"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type storeTest interface {
-	GetMetric(ctx context.Context) (string, error)
-	GetOneMetric(ctx context.Context, metric, name string) (string, error)
-	UpdateMetric(context.Context, service.Request) error
+func newLogger() zerolog.Logger {
+	out := zerolog.ConsoleWriter{
+		Out:        os.Stderr,
+		TimeFormat: "2006-01-02 15:04:05 -0700",
+		NoColor:    true,
+	}
+
+	l := zerolog.New(out)
+
+	return l.Level(zerolog.InfoLevel).With().Timestamp().Logger()
 }
 
 func TestV1_UpdateMetric(t *testing.T) {
-	st := memory.New()
-	se := service.New(st)
+	l := newLogger()
+
+	st := memory.New(l)
+	se := service.New(st, l)
 
 	router := chi.NewRouter()
 	h := rest.Handler{
