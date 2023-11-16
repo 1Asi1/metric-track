@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
+	"github.com/rs/zerolog"
 )
 
 const (
@@ -31,19 +32,26 @@ type Request struct {
 
 type Service struct {
 	Store memory.Store
+	log   zerolog.Logger
 }
 
-func New(store memory.Store) Service {
+func New(store memory.Store, log zerolog.Logger) Service {
 	return Service{
 		Store: store,
+		log:   log,
 	}
 }
 
 func (s Service) GetMetric(ctx context.Context) (string, error) {
+	l := s.log.With().Str("apiserver", "GetMetric").Logger()
+
 	data, err := s.Store.Get(ctx)
 	if err != nil {
+		l.Error().Err(err).Msg("s.Store.Get")
 		return "", err
 	}
+
+	l.Info().Msgf("data value: %+v", data)
 
 	res := s.parseToHTML(data)
 
@@ -51,10 +59,15 @@ func (s Service) GetMetric(ctx context.Context) (string, error) {
 }
 
 func (s Service) GetOneMetric(ctx context.Context, metric, name string) (string, error) {
+	l := s.log.With().Str("apiserver", "GetOneMetric").Logger()
+
 	data, err := s.Store.GetOne(ctx, name)
 	if err != nil {
+		l.Error().Err(err).Msgf("s.Store.GetOne metric name: %s", name)
 		return "", fmt.Errorf("metric name: %s, error:%w", name, err)
 	}
+
+	l.Info().Msgf("data value: %+v", data)
 
 	if metric == Gauge {
 		frmt := strconv.FormatFloat(data.Gauge, 'f', -1, 64)
@@ -65,10 +78,15 @@ func (s Service) GetOneMetric(ctx context.Context, metric, name string) (string,
 }
 
 func (s Service) UpdateMetric(ctx context.Context, req Request) error {
+	l := s.log.With().Str("apiserver", "UpdateMetric").Logger()
+
 	data, err := s.Store.Get(ctx)
 	if err != nil {
+		l.Error().Err(err).Msg("s.Store.Get")
 		return err
 	}
+
+	l.Info().Msgf("data value: %+v", data)
 
 	value := data[req.Name]
 	if req.Metric == Gauge {
@@ -80,6 +98,7 @@ func (s Service) UpdateMetric(ctx context.Context, req Request) error {
 
 	err = s.Store.Update(ctx, data)
 	if err != nil {
+		l.Error().Err(err).Msgf("s.Store.Update, data: %+v", data)
 		return err
 	}
 

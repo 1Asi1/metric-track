@@ -5,6 +5,7 @@ import (
 	"runtime"
 
 	"github.com/1Asi1/metric-track.git/internal/config"
+	"github.com/rs/zerolog"
 )
 
 type Gauge float64
@@ -17,15 +18,19 @@ type Metric struct {
 
 type Service struct {
 	cfg config.Config
+	log zerolog.Logger
 }
 
-func New(cfg config.Config) Service {
+func New(cfg config.Config, log zerolog.Logger) Service {
 	return Service{
 		cfg: cfg,
+		log: log,
 	}
 }
 
 func (s Service) GetMetric() Metric {
+	l := s.log.With().Str("service", "GetMetric").Logger()
+
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
@@ -59,6 +64,8 @@ func (s Service) GetMetric() Metric {
 		"TotalAlloc":    m.TotalAlloc,
 		"RandomValue":   Gauge(rand.ExpFloat64()),
 	}
+
+	l.Info().Msgf("data value: %+v", res)
 
 	return Metric{Type: res}
 }
