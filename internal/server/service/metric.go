@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
+	"github.com/rs/zerolog"
 )
 
 const (
@@ -18,85 +20,134 @@ var TypeMetric = map[string]struct{}{
 	Counter: {},
 }
 
-type Type struct {
-	Gauge   float64
-	Counter int64
+type Metrics struct {
+	ID    string   `json:"id"`
+	MType string   `json:"type"`
+	Delta *int64   `json:"delta,omitempty"`
+	Value *float64 `json:"value,omitempty"`
 }
 
-type Request struct {
-	Metric string
-	Name   string
-	Type   Type
+type MetricsRequest struct {
+	ID    string   `json:"id"`
+	MType string   `json:"type"`
+	Delta *int64   `json:"delta,omitempty"`
+	Value *float64 `json:"value,omitempty"`
 }
 
 type Service struct {
 	Store memory.Store
+	log   zerolog.Logger
 }
 
-func New(store memory.Store) Service {
+func New(store memory.Store, log zerolog.Logger) Service {
 	return Service{
 		Store: store,
+		log:   log,
 	}
 }
 
 func (s Service) GetMetric(ctx context.Context) (string, error) {
+	l := s.log.With().Str("service", "GetMetric").Logger()
+
 	data, err := s.Store.Get(ctx)
 	if err != nil {
+		l.Error().Err(err).Msg("s.Store.Get")
 		return "", err
 	}
+
+	l.Debug().Msgf("data value: %+v", data)
 
 	res := s.parseToHTML(data)
 
 	return res, nil
 }
 
-func (s Service) GetOneMetric(ctx context.Context, metric, name string) (string, error) {
-	data, err := s.Store.GetOne(ctx, name)
+func (s Service) GetOneMetric(ctx context.Context, req MetricsRequest) (Metrics, error) {
+	l := s.log.With().Str("service", "GetOneMetric").Logger()
+
+	data, err := s.Store.GetOne(ctx, req.ID)
 	if err != nil {
-		return "", fmt.Errorf("metric name: %s, error:%w", name, err)
+		l.Error().Err(err).Msgf("s.Store.GetOne metric id: %s", req.ID)
+		return Metrics{}, fmt.Errorf("metric name: %s, error:%w", req.ID, err)
 	}
 
-	if metric == Gauge {
-		frmt := strconv.FormatFloat(data.Gauge, 'f', -1, 64)
-		return frmt, nil
+	l.Debug().Msgf("data value: %+v", data)
+
+	if req.MType == Gauge {
+		return Metrics{
+			ID:    req.ID,
+			MType: Gauge,
+			Value: data.Gauge,
+			Delta: nil,
+		}, nil
 	}
 
-	return strconv.FormatInt(data.Counter, 10), nil
+	return Metrics{
+		ID:    req.ID,
+		MType: Counter,
+		Value: nil,
+		Delta: data.Counter,
+	}, nil
 }
 
-func (s Service) UpdateMetric(ctx context.Context, req Request) error {
+func (s Service) UpdateMetric(ctx context.Context, req MetricsRequest) (Metrics, error) {
+	l := s.log.With().Str("service", "UpdateMetric").Logger()
+
 	data, err := s.Store.Get(ctx)
 	if err != nil {
-		return err
+		l.Error().Err(err).Msg("s.Store.Get")
+		return Metrics{}, err
 	}
 
-	value := data[req.Name]
-	if req.Metric == Gauge {
-		value.Gauge = req.Type.Gauge
+	l.Debug().Msgf("data value: %+v", data)
+	value := data[req.ID]
+	if req.MType == Gauge {
+		value.Gauge = req.Value
 	} else {
-		value.Counter += req.Type.Counter
+		if value.Counter != nil {
+			*value.Counter += *req.Delta
+		} else {
+			value.Counter = req.Delta
+		}
 	}
-	data[req.Name] = value
+	data[req.ID] = value
 
 	err = s.Store.Update(ctx, data)
 	if err != nil {
-		return err
+		l.Error().Err(err).Msgf("s.Store.Update, data: %+v", data)
+		return Metrics{}, err
 	}
 
-	return nil
+	return Metrics{
+		ID:    req.ID,
+		MType: req.MType,
+		Value: value.Gauge,
+		Delta: value.Counter,
+	}, nil
 }
 
 func (s Service) parseToHTML(data map[string]memory.Type) string {
 	var insert string
 
 	for k, v := range data {
+		var gauge float64
+		var counter int64
+
+		if v.Gauge != nil {
+			gauge = *v.Gauge
+		}
+
+		if v.Counter != nil {
+			counter = *v.Counter
+		}
+
 		insert += fmt.Sprintf(`
 	<p><b>Имя: %s</p>
-	<p><b>Guage: %f</p>
+	<p><b>Gauge: %s</p>
 	<p><b>Counter: %d</p>`,
 			k,
-			v.Gauge,
-			v.Counter) +
+			strconv.FormatFloat(gauge, 'f', -1, 64),
+			counter) +
 			"\n_______________\n"
 	}
 
@@ -116,4 +167,32 @@ func (s Service) parseToHTML(data map[string]memory.Type) string {
 		insert)
 
 	return res
+}
+
+func (m Metrics) MarshalJSON() ([]byte, error) {
+	type MetricsAlias Metrics
+	aliasValue := struct {
+		MetricsAlias
+	}{
+		MetricsAlias: MetricsAlias(m),
+	}
+	aliasValue.ID = m.ID
+	aliasValue.MType = m.MType
+	aliasValue.Delta = m.Delta
+	if m.Value != nil {
+		if float64(*m.Value) == float64(int(*m.Value)) {
+			jsonData, err := json.Marshal(aliasValue)
+			if err != nil {
+				return nil, err
+			}
+
+			jsonString := string(jsonData)
+			formattedJSON := strconv.FormatFloat(float64(*m.Value), 'f', 6, 64)
+			jsonString = jsonString[:len(jsonString)-1] + formattedJSON[1:] + "}"
+
+			return []byte(jsonString), nil
+		}
+	}
+
+	return json.Marshal(aliasValue)
 }

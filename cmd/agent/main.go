@@ -1,21 +1,32 @@
 package main
 
 import (
-	"log"
+	"os"
 
 	"github.com/1Asi1/metric-track.git/internal/agent/integration"
 	"github.com/1Asi1/metric-track.git/internal/agent/service"
 	"github.com/1Asi1/metric-track.git/internal/config"
+	"github.com/rs/zerolog"
 )
 
 func main() {
-	cfg, err := config.New()
-	if err != nil {
-		log.Fatal(err)
+	out := zerolog.ConsoleWriter{
+		Out:        os.Stderr,
+		TimeFormat: "2006-01-02 15:04:05 -0700",
+		NoColor:    true,
 	}
 
-	s := service.New(cfg)
-	c := integration.New(cfg, s)
+	l := zerolog.New(out)
+
+	l = l.Level(zerolog.InfoLevel).With().Timestamp().Logger()
+
+	cfg, err := config.New(l)
+	if err != nil {
+		l.Fatal().Err(err).Msg("config.New")
+	}
+
+	s := service.New(cfg, l)
+	c := integration.New(cfg, s, l)
 
 	c.SendMetricPeriodic()
 }

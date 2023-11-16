@@ -1,7 +1,6 @@
 package apiserver
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/1Asi1/metric-track.git/internal/config"
@@ -10,28 +9,34 @@ import (
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest/v1"
 	"github.com/go-chi/chi/v5"
+	"github.com/rs/zerolog"
 )
 
 type APIServer struct {
 	cfg config.Config
 	mux *chi.Mux
+	log zerolog.Logger
 }
 
-func New(cfg config.Config) APIServer {
+func New(cfg config.Config, log zerolog.Logger) APIServer {
 	return APIServer{
 		cfg: cfg,
 		mux: chi.NewRouter(),
+		log: log,
 	}
 }
 
 func (s *APIServer) Run() error {
-	memoryStore := memory.New()
-	metricS := service.New(memoryStore)
-	route := rest.New(s.mux, metricS)
+	l := s.log.With().Str("apiserver", "Run").Logger()
+
+	memoryStore := memory.New(s.log)
+	metricS := service.New(memoryStore, s.log)
+	route := rest.New(s.mux, metricS, s.log)
 	v1.New(route)
 
-	log.Printf("server start: http://%s\n", s.cfg.MetricServerAddr)
+	l.Info().Msgf("server start: http://%s", s.cfg.MetricServerAddr)
 	if err := http.ListenAndServe(s.cfg.MetricServerAddr, route.Mux); err != nil {
+		l.Error().Err(err).Msg("http.ListenAndServe")
 		return err
 	}
 

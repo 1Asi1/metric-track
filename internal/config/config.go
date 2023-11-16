@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
 type Config struct {
@@ -13,7 +15,9 @@ type Config struct {
 	MetricServerAddr string
 }
 
-func New() (Config, error) {
+func New(log zerolog.Logger) (Config, error) {
+	l := log.With().Str("config", "New").Logger()
+
 	var cfg Config
 
 	add := flag.String("a", "localhost:8080", "address and port to run agent")
@@ -25,6 +29,7 @@ func New() (Config, error) {
 	if ok {
 		pI, err := strconv.Atoi(pollInterval)
 		if err != nil {
+			l.Error().Err(err).Msgf("strconv.Atoi, poll interval value: %s", pollInterval)
 			return Config{}, err
 		}
 
@@ -37,6 +42,7 @@ func New() (Config, error) {
 	if ok {
 		rI, err := strconv.Atoi(reportInterval)
 		if err != nil {
+			l.Error().Err(err).Msgf("strconv.Atoi, report interval value: %s", reportInterval)
 			return Config{}, err
 		}
 
@@ -47,8 +53,10 @@ func New() (Config, error) {
 
 	metricServerAddr, ok := os.LookupEnv("ADDRESS")
 	if ok {
+		l.Info().Msgf("server address value: %s", metricServerAddr)
 		cfg.MetricServerAddr = metricServerAddr
 	} else {
+		l.Info().Msgf("server address value: %s", *add)
 		cfg.MetricServerAddr = *add
 	}
 

@@ -1,33 +1,47 @@
 package integration
 
 import (
+	"encoding/json"
 	"fmt"
-	"log"
+	"math/rand"
 	"net/http"
 	"time"
 
 	"github.com/1Asi1/metric-track.git/internal/agent/service"
 	"github.com/1Asi1/metric-track.git/internal/config"
-	s "github.com/1Asi1/metric-track.git/internal/server/service"
 	"github.com/go-resty/resty/v2"
+	"github.com/rs/zerolog"
 )
+
+type MetricsRequest struct {
+	ID    string `json:"id"`
+	MType string `json:"type"`
+	Delta any    `json:"delta"`
+	Value any    `json:"value"`
+}
 
 type Client struct {
 	cfg     config.Config
 	service service.Service
 	http    *resty.Client
+	log     zerolog.Logger
 }
 
-func New(cfg config.Config, s service.Service) *Client {
+func New(cfg config.Config, s service.Service, log zerolog.Logger) *Client {
+	client := resty.New()
+	client.SetTimeout(10 * time.Second)
 	return &Client{
 		cfg:     cfg,
 		service: s,
-		http:    resty.New(),
+		http:    client,
+		log:     log,
 	}
 }
 
 func (c *Client) SendMetricPeriodic() {
-	var count service.Counter
+	l := c.log.With().Str("integration", "SendMetricPeriodic").Logger()
+
+	var count int
 	var res service.Metric
 	tickerPool := time.NewTicker(c.cfg.PollInterval)
 	tickerRep := time.NewTicker(c.cfg.ReportInterval)
@@ -37,16 +51,18 @@ func (c *Client) SendMetricPeriodic() {
 			res = c.service.GetMetric()
 
 			count++
-			res.PollCount = count
+
+			res.Type["RandomValue"] = rand.ExpFloat64()
+			res.Type["PollCount"] = count
 		case <-tickerRep.C:
 
 			for k, v := range res.Type {
 				if err := c.sendToServerGauge(k, v); err != nil {
-					log.Println(err)
+					l.Error().Err(err).Msgf("c.sendToServerGauge, type: %s, value: %v", k, v)
 				}
 
-				if err := c.sendToServerCounter(k, res.PollCount); err != nil {
-					log.Println(err)
+				if err := c.sendToServerCounter(k, res.Type["PollCount"]); err != nil {
+					l.Error().Err(err).Msgf("c.sendToServerGauge, type: %s, value: %v", k, v)
 				}
 			}
 
@@ -56,9 +72,14 @@ func (c *Client) SendMetricPeriodic() {
 }
 
 func (c *Client) sendToServerGauge(name string, value any) error {
-	url := fmt.Sprintf("http://%s/update/%s/%s/%v", c.cfg.MetricServerAddr, s.Gauge, name, value)
+	req := MetricsRequest{
+		ID:    name,
+		MType: "gauge",
+		Value: value,
+		Delta: 0,
+	}
 
-	if err := c.send(url); err != nil {
+	if err := c.send(req); err != nil {
 		return fmt.Errorf("sendToServerGauge: %v", err)
 	}
 
@@ -66,23 +87,45 @@ func (c *Client) sendToServerGauge(name string, value any) error {
 }
 
 func (c *Client) sendToServerCounter(name string, value any) error {
-	url := fmt.Sprintf("http://%s/update/%s/%s/%d", c.cfg.MetricServerAddr, s.Counter, name, value)
+	req := MetricsRequest{
+		ID:    name,
+		MType: "counter",
+		Delta: value,
+		Value: 0,
+	}
 
-	if err := c.send(url); err != nil {
+	if err := c.send(req); err != nil {
 		return fmt.Errorf("sendToServerCounter: %v", err)
 	}
 
 	return nil
 }
 
-func (c *Client) send(url string) error {
-	res, err := c.http.R().SetHeader("Content-Type", "text/plain; charset=utf-8").Post(url)
+func (c *Client) send(req MetricsRequest) error {
+	l := c.log.With().Str("integration", "send").Logger()
+
+	url := fmt.Sprintf("http://%s/update/", c.cfg.MetricServerAddr)
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		l.Error().Err(err).Msg("json.Marshal")
+		return err
+	}
+
+	request := c.http.R().SetHeader("Content-Type", "application/json")
+	request.SetBody(data)
+	request.Method = resty.MethodPost
+	request.URL = url
+	defer c.http.SetCloseConnection(true)
+
+	res, err := request.Send()
 	if err != nil {
 		return err
 	}
 	defer res.RawBody().Close()
 
 	if res.StatusCode() != http.StatusOK {
+		l.Error().Err(err).Msgf("expected status %d, got: %d", http.StatusOK, res.StatusCode())
 		return fmt.Errorf("expected status %d, got: %d", http.StatusOK, res.StatusCode())
 	}
 
