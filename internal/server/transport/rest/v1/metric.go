@@ -146,7 +146,7 @@ func (h V1) GetOneMetric2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := json.Marshal(result)
+	res, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		l.Error().Err(err).Msgf("json.Unmarshal, request value: %+v", r)
 		http.Error(w, err.Error(), http.StatusBadRequest)
