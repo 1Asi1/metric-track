@@ -1,6 +1,8 @@
 package integration
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -112,7 +114,16 @@ func (c *Client) send(req MetricsRequest) error {
 		return err
 	}
 
+	buf := bytes.NewBuffer(data)
+	gz, err := gzip.NewWriterLevel(buf, gzip.BestSpeed)
+	if err != nil {
+		l.Error().Err(err).Msg("gzip.NewWriterLevel")
+		return err
+	}
+	defer gz.Close()
+
 	request := c.http.R().SetHeader("Content-Type", "application/json")
+	request.SetHeader("Content-Encoding", "gzip")
 	request.SetBody(data)
 	request.Method = resty.MethodPost
 	request.URL = url

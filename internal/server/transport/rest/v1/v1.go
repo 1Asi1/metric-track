@@ -3,6 +3,7 @@ package v1
 import (
 	"github.com/1Asi1/metric-track.git/internal/server/service"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest"
+	"github.com/1Asi1/metric-track.git/internal/server/transport/rest/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -22,10 +23,10 @@ func New(h rest.Handler) {
 
 func (h V1) registerV1Route() {
 	h.handler.Mux.Route("/", func(r chi.Router) {
-		r.Get("/", h.GetMetric)
+		r.Get("/", middleware.GzipMiddleware(h.GetMetric))
 		r.Get("/value/{metric}/{name}", h.GetOneMetric)
 		r.Post("/update/{metric}/{name}/{value}", h.UpdateMetric)
-		r.Post("/value/", h.GetOneMetric2)
-		r.Post("/update/", h.UpdateMetric2)
+		r.Post("/value/", middleware.GzipMiddleware(h.GetOneMetric2))
+		r.Post("/update/", middleware.GzipMiddleware(h.UpdateMetric2))
 	})
 }
