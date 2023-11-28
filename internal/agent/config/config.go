@@ -10,9 +10,9 @@ import (
 )
 
 type Config struct {
+	MetricServerAddr string
 	PollInterval     time.Duration
 	ReportInterval   time.Duration
-	MetricServerAddr string
 }
 
 func New(log zerolog.Logger) (Config, error) {
@@ -25,11 +25,20 @@ func New(log zerolog.Logger) (Config, error) {
 	pull := flag.Int("p", 2, "pull agent interval")
 	flag.Parse()
 
-	pollInterval, ok := os.LookupEnv("POLL_INTERVAL")
+	metricServerAddrEnv, ok := os.LookupEnv("ADDRESS")
 	if ok {
-		pI, err := strconv.Atoi(pollInterval)
+		l.Info().Msgf("server address value: %s", metricServerAddrEnv)
+		cfg.MetricServerAddr = metricServerAddrEnv
+	} else {
+		l.Info().Msgf("server address value: %s", *add)
+		cfg.MetricServerAddr = *add
+	}
+
+	pollIntervalEnv, ok := os.LookupEnv("POLL_INTERVAL")
+	if ok {
+		pI, err := strconv.Atoi(pollIntervalEnv)
 		if err != nil {
-			l.Error().Err(err).Msgf("strconv.Atoi, poll interval value: %s", pollInterval)
+			l.Error().Err(err).Msgf("strconv.Atoi, poll interval value: %s", pollIntervalEnv)
 			return Config{}, err
 		}
 
@@ -38,26 +47,17 @@ func New(log zerolog.Logger) (Config, error) {
 		cfg.PollInterval = time.Duration(*pull) * time.Second
 	}
 
-	reportInterval, ok := os.LookupEnv("REPORT_INTERVAL")
+	reportIntervalEnv, ok := os.LookupEnv("REPORT_INTERVAL")
 	if ok {
-		rI, err := strconv.Atoi(reportInterval)
+		rI, err := strconv.Atoi(reportIntervalEnv)
 		if err != nil {
-			l.Error().Err(err).Msgf("strconv.Atoi, report interval value: %s", reportInterval)
+			l.Error().Err(err).Msgf("strconv.Atoi, report interval value: %s", reportIntervalEnv)
 			return Config{}, err
 		}
 
 		cfg.ReportInterval = time.Duration(rI) * time.Second
 	} else {
 		cfg.ReportInterval = time.Duration(*rep) * time.Second
-	}
-
-	metricServerAddr, ok := os.LookupEnv("ADDRESS")
-	if ok {
-		l.Info().Msgf("server address value: %s", metricServerAddr)
-		cfg.MetricServerAddr = metricServerAddr
-	} else {
-		l.Info().Msgf("server address value: %s", *add)
-		cfg.MetricServerAddr = *add
 	}
 
 	return cfg, nil

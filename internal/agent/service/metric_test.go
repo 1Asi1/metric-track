@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/1Asi1/metric-track.git/internal/config"
+	"github.com/1Asi1/metric-track.git/internal/agent/config"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 )

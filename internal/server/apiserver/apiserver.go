@@ -3,7 +3,7 @@ package apiserver
 import (
 	"net/http"
 
-	"github.com/1Asi1/metric-track.git/internal/config"
+	"github.com/1Asi1/metric-track.git/internal/server/config"
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
 	"github.com/1Asi1/metric-track.git/internal/server/service"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest"
@@ -29,7 +29,7 @@ func New(cfg config.Config, log zerolog.Logger) APIServer {
 func (s *APIServer) Run() error {
 	l := s.log.With().Str("apiserver", "Run").Logger()
 
-	memoryStore := memory.New(s.log)
+	memoryStore := memory.New(s.log, s.cfg)
 	metricS := service.New(memoryStore, s.log)
 	route := rest.New(s.mux, metricS, s.log)
 	v1.New(route)

@@ -1,13 +1,13 @@
 package v1
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 
-	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
 	"github.com/1Asi1/metric-track.git/internal/server/service"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest"
 	"github.com/go-chi/chi/v5"
@@ -29,9 +29,32 @@ func newLogger() zerolog.Logger {
 	return l.Level(zerolog.InfoLevel).With().Timestamp().Logger()
 }
 
+type storeTest struct {
+	metric map[string]service.Type
+}
+
+func newStore() storeTest {
+	res := make(map[string]service.Type)
+	gauge := 3.14
+	res["Test"] = service.Type{Gauge: &gauge, Counter: nil}
+	return storeTest{metric: res}
+}
+
+func (s storeTest) Get(ctx context.Context) (map[string]service.Type, error) {
+	return s.metric, nil
+}
+
+func (s storeTest) GetOne(ctx context.Context, name string) (service.Type, error) {
+	return s.metric["Test"], nil
+}
+
+func (s storeTest) Update(ctx context.Context, data map[string]service.Type) error {
+	return nil
+}
+
 func TestV1_UpdateMetric(t *testing.T) {
 	l := newLogger()
-	st := memory.New(l)
+	st := newStore()
 	se := service.New(st, l)
 
 	router := chi.NewRouter()
@@ -85,8 +108,7 @@ func TestV1_UpdateMetric(t *testing.T) {
 
 func TestV1_UpdateMetric2(t *testing.T) {
 	l := newLogger()
-
-	st := memory.New(l)
+	st := newStore()
 	se := service.New(st, l)
 
 	router := chi.NewRouter()

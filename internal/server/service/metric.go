@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
 	"github.com/rs/zerolog"
 )
 
@@ -18,6 +17,11 @@ const (
 var TypeMetric = map[string]struct{}{
 	Gauge:   {},
 	Counter: {},
+}
+
+type Type struct {
+	Gauge   *float64
+	Counter *int64
 }
 
 type Metrics struct {
@@ -34,12 +38,18 @@ type MetricsRequest struct {
 	Value *float64 `json:"value,omitempty"`
 }
 
+type Store interface {
+	Get(ctx context.Context) (map[string]Type, error)
+	GetOne(ctx context.Context, name string) (Type, error)
+	Update(ctx context.Context, data map[string]Type) error
+}
+
 type Service struct {
-	Store memory.Store
+	Store Store
 	log   zerolog.Logger
 }
 
-func New(store memory.Store, log zerolog.Logger) Service {
+func New(store Store, log zerolog.Logger) Service {
 	return Service{
 		Store: store,
 		log:   log,
@@ -126,7 +136,7 @@ func (s Service) UpdateMetric(ctx context.Context, req MetricsRequest) (Metrics,
 	}, nil
 }
 
-func (s Service) parseToHTML(data map[string]memory.Type) string {
+func (s Service) parseToHTML(data map[string]Type) string {
 	var insert string
 
 	for k, v := range data {

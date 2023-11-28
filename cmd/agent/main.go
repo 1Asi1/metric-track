@@ -3,9 +3,9 @@ package main
 import (
 	"os"
 
+	"github.com/1Asi1/metric-track.git/internal/agent/config"
 	"github.com/1Asi1/metric-track.git/internal/agent/integration"
 	"github.com/1Asi1/metric-track.git/internal/agent/service"
-	"github.com/1Asi1/metric-track.git/internal/config"
 	"github.com/rs/zerolog"
 )
 

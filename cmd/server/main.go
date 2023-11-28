@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	"github.com/1Asi1/metric-track.git/internal/config"
 	"github.com/1Asi1/metric-track.git/internal/server/apiserver"
+	"github.com/1Asi1/metric-track.git/internal/server/config"
 	"github.com/rs/zerolog"
 )
 

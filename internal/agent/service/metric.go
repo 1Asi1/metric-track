@@ -3,7 +3,7 @@ package service
 import (
 	"runtime"
 
-	"github.com/1Asi1/metric-track.git/internal/config"
+	"github.com/1Asi1/metric-track.git/internal/agent/config"
 	"github.com/rs/zerolog"
 )
 

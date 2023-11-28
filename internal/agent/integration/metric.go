@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/1Asi1/metric-track.git/internal/agent/config"
 	"github.com/1Asi1/metric-track.git/internal/agent/service"
-	"github.com/1Asi1/metric-track.git/internal/config"
 	"github.com/go-resty/resty/v2"
 	"github.com/rs/zerolog"
 )
