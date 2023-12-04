@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -109,17 +110,28 @@ func (h V1) GetOneMetric2(w http.ResponseWriter, r *http.Request) {
 	l := h.handler.Log.With().Str("v1/metric", "GetOneMetric2").Logger()
 
 	var req service.MetricsRequest
-	data, err := io.ReadAll(r.Body)
+	var reader io.Reader
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		gz, err := gzip.NewReader(r.Body)
+		if err != nil {
+			l.Error().Err(err).Msgf("gzip.NewReader, request value: %+v", r)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer gz.Close()
+		reader = gz
+	} else {
+		reader = r.Body
+	}
+
+	body, err := io.ReadAll(reader)
 	if err != nil {
 		l.Error().Err(err).Msgf("io.ReadAll, request value: %+v", r)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
 
-	l.Info().Msgf("req body: %s", data)
-
-	err = json.Unmarshal(data, &req)
+	err = json.Unmarshal(body, &req)
 	if err != nil {
 		l.Error().Err(err).Msgf("json.Unmarshal, request value: %+v", r)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -153,8 +165,6 @@ func (h V1) GetOneMetric2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	l.Info().Msgf("resp body: %s", res)
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
@@ -165,17 +175,28 @@ func (h V1) UpdateMetric2(w http.ResponseWriter, r *http.Request) {
 	l := h.handler.Log.With().Str("v1/metric", "UpdateMetric2").Logger()
 
 	var req service.MetricsRequest
-	data, err := io.ReadAll(r.Body)
+	var reader io.Reader
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		gz, err := gzip.NewReader(r.Body)
+		if err != nil {
+			l.Error().Err(err).Msgf("gzip.NewReader, request value: %+v", r)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer gz.Close()
+		reader = gz
+	} else {
+		reader = r.Body
+	}
+
+	body, err := io.ReadAll(reader)
 	if err != nil {
 		l.Error().Err(err).Msgf("io.ReadAll, request value: %+v", r)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
 
-	l.Info().Msgf("req body: %s", data)
-
-	err = json.Unmarshal(data, &req)
+	err = json.Unmarshal(body, &req)
 	if err != nil {
 		l.Error().Err(err).Msgf("json.Unmarshal, request value: %+v", r)
 		http.Error(w, err.Error(), http.StatusBadRequest)

@@ -9,6 +9,7 @@ import (
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest/v1"
 	"github.com/go-chi/chi/v5"
+	midlog "github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog"
 )
 
@@ -29,9 +30,11 @@ func New(cfg config.Config, log zerolog.Logger) APIServer {
 func (s *APIServer) Run() error {
 	l := s.log.With().Str("apiserver", "Run").Logger()
 
-	memoryStore := memory.New(s.log, s.cfg)
+	memoryStore := memory.New(s.log, s.cfg.StoreRestore, s.cfg.StoreInterval, s.cfg.StorePath)
 	metricS := service.New(memoryStore, s.log)
 	route := rest.New(s.mux, metricS, s.log)
+
+	route.Mux.Use(midlog.Logger)
 	v1.New(route)
 
 	l.Info().Msgf("server start: http://%s", s.cfg.MetricServerAddr)

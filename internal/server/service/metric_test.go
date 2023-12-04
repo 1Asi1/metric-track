@@ -2,24 +2,10 @@ package service
 
 import (
 	"context"
-	"os"
 	"testing"
 
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 )
-
-func newLogger() zerolog.Logger {
-	out := zerolog.ConsoleWriter{
-		Out:        os.Stderr,
-		TimeFormat: "2006-01-02 15:04:05 -0700",
-		NoColor:    true,
-	}
-
-	l := zerolog.New(out)
-
-	return l.Level(zerolog.InfoLevel).With().Timestamp().Logger()
-}
 
 type storeTest struct {
 	metric map[string]Type
@@ -40,8 +26,8 @@ func (s storeTest) GetOne(ctx context.Context, name string) (Type, error) {
 	return s.metric["Test"], nil
 }
 
-func (s storeTest) Update(ctx context.Context, data map[string]Type) error {
-	return nil
+func (s storeTest) Update(ctx context.Context, data map[string]Type) {
+
 }
 
 func Test_service_UpdateMetric(t *testing.T) {

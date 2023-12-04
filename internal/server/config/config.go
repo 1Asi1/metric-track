@@ -21,7 +21,7 @@ func New(log zerolog.Logger) (Config, error) {
 
 	var cfg Config
 	add := flag.String("a", "localhost:8080", "address and port to run agent")
-	store := flag.Int("i", 0, "store interval")
+	store := flag.Int("i", 300, "store interval")
 	path := flag.String("f", "./tmp/metrics-db.json", "path store file")
 	restore := flag.Bool("r", true, "store restore")
 	flag.Parse()

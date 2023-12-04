@@ -48,8 +48,8 @@ func (s storeTest) GetOne(ctx context.Context, name string) (service.Type, error
 	return s.metric["Test"], nil
 }
 
-func (s storeTest) Update(ctx context.Context, data map[string]service.Type) error {
-	return nil
+func (s storeTest) Update(ctx context.Context, data map[string]service.Type) {
+
 }
 
 func TestV1_UpdateMetric(t *testing.T) {

@@ -41,7 +41,7 @@ type MetricsRequest struct {
 type Store interface {
 	Get(ctx context.Context) (map[string]Type, error)
 	GetOne(ctx context.Context, name string) (Type, error)
-	Update(ctx context.Context, data map[string]Type) error
+	Update(ctx context.Context, data map[string]Type)
 }
 
 type Service struct {
@@ -122,11 +122,7 @@ func (s Service) UpdateMetric(ctx context.Context, req MetricsRequest) (Metrics,
 	}
 	data[req.ID] = value
 
-	err = s.Store.Update(ctx, data)
-	if err != nil {
-		l.Error().Err(err).Msgf("s.Store.Update, data: %+v", data)
-		return Metrics{}, err
-	}
+	s.Store.Update(ctx, data)
 
 	return Metrics{
 		ID:    req.ID,

@@ -104,27 +104,25 @@ func (c *Client) sendToServerCounter(name string, value any) error {
 }
 
 func (c *Client) send(req MetricsRequest) error {
-	l := c.log.With().Str("integration", "send").Logger()
-
 	url := fmt.Sprintf("http://%s/update/", c.cfg.MetricServerAddr)
 
 	data, err := json.Marshal(req)
 	if err != nil {
-		l.Error().Err(err).Msg("json.Marshal")
 		return err
 	}
 
-	buf := bytes.NewBuffer(data)
-	gz, err := gzip.NewWriterLevel(buf, gzip.BestSpeed)
+	var buf bytes.Buffer
+	gz, err := gzip.NewWriterLevel(&buf, gzip.BestSpeed)
 	if err != nil {
-		l.Error().Err(err).Msg("gzip.NewWriterLevel")
 		return err
 	}
 	defer gz.Close()
+	gz.Write(data)
+	gz.Close()
 
 	request := c.http.R().SetHeader("Content-Type", "application/json")
 	request.SetHeader("Content-Encoding", "gzip")
-	request.SetBody(data)
+	request.SetBody(&buf)
 	request.Method = resty.MethodPost
 	request.URL = url
 	defer c.http.SetCloseConnection(true)
@@ -136,7 +134,6 @@ func (c *Client) send(req MetricsRequest) error {
 	defer res.RawBody().Close()
 
 	if res.StatusCode() != http.StatusOK {
-		l.Error().Err(err).Msgf("expected status %d, got: %d", http.StatusOK, res.StatusCode())
 		return fmt.Errorf("expected status %d, got: %d", http.StatusOK, res.StatusCode())
 	}
 

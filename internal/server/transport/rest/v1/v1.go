@@ -18,15 +18,16 @@ func New(h rest.Handler) {
 		service: h.Service,
 	}
 
+	v1.handler.Mux.Use(middleware.GzipMiddleware)
 	v1.registerV1Route()
 }
 
 func (h V1) registerV1Route() {
 	h.handler.Mux.Route("/", func(r chi.Router) {
-		r.Get("/", middleware.GzipMiddleware(h.GetMetric))
+		r.Get("/", h.GetMetric)
 		r.Get("/value/{metric}/{name}", h.GetOneMetric)
 		r.Post("/update/{metric}/{name}/{value}", h.UpdateMetric)
-		r.Post("/value/", middleware.GzipMiddleware(h.GetOneMetric2))
-		r.Post("/update/", middleware.GzipMiddleware(h.UpdateMetric2))
+		r.Post("/value/", h.GetOneMetric2)
+		r.Post("/update/", h.UpdateMetric2)
 	})
 }
