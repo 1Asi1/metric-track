@@ -2,36 +2,30 @@ package service
 
 import (
 	"context"
+	"os"
 	"testing"
 
+	"github.com/1Asi1/metric-track.git/internal/server/config"
+	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 )
 
-type storeTest struct {
-	metric map[string]Type
-}
+func newLogger() zerolog.Logger {
+	out := zerolog.ConsoleWriter{
+		Out:        os.Stderr,
+		TimeFormat: "2006-01-02 15:04:05 -0700",
+		NoColor:    true,
+	}
 
-func newStore() storeTest {
-	res := make(map[string]Type)
-	gauge := 3.14
-	res["Test"] = Type{Gauge: &gauge, Counter: nil}
-	return storeTest{metric: res}
-}
+	l := zerolog.New(out)
 
-func (s storeTest) Get(ctx context.Context) (map[string]Type, error) {
-	return s.metric, nil
-}
-
-func (s storeTest) GetOne(ctx context.Context, name string) (Type, error) {
-	return s.metric["Test"], nil
-}
-
-func (s storeTest) Update(ctx context.Context, data map[string]Type) {
-
+	return l.Level(zerolog.InfoLevel).With().Timestamp().Logger()
 }
 
 func Test_service_UpdateMetric(t *testing.T) {
-	st := newStore()
+	l := newLogger()
+	st := memory.New(l, config.Config{})
 	srv := Service{Store: st}
 
 	type args struct {

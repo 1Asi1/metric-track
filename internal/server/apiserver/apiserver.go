@@ -30,7 +30,7 @@ func New(cfg config.Config, log zerolog.Logger) APIServer {
 func (s *APIServer) Run() error {
 	l := s.log.With().Str("apiserver", "Run").Logger()
 
-	memoryStore := memory.New(s.log, s.cfg.StoreRestore, s.cfg.StoreInterval, s.cfg.StorePath)
+	memoryStore := memory.New(s.log, s.cfg)
 	metricS := service.New(memoryStore, s.log)
 	route := rest.New(s.mux, metricS, s.log)
 

@@ -25,10 +25,10 @@ func GzipMiddleware(next http.Handler) http.Handler {
 
 		gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
 		if err != nil {
-			io.WriteString(w, err.Error())
+			_, err = io.WriteString(w, err.Error())
 			return
 		}
-		defer gz.Close()
+		defer func() { err = gz.Close() }()
 
 		w.Header().Set("Content-Encoding", "gzip")
 		next.ServeHTTP(GzipCompress{ResponseWriter: w, Writer: gz}, r)

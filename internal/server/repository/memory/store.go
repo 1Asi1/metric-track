@@ -10,24 +10,31 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/1Asi1/metric-track.git/internal/server/service"
+	"github.com/1Asi1/metric-track.git/internal/server/config"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 var (
 	ErrNotFound = errors.New("name metric not found")
 )
 
-type MemoryStore struct {
-	metric        map[string]service.Type
-	log           zerolog.Logger
-	storeRestore  bool
-	storeInterval time.Duration
-	storePath     string
+type Store interface {
+	Get(ctx context.Context) (map[string]Type, error)
+	GetOne(ctx context.Context, name string) (Type, error)
+	Update(ctx context.Context, data map[string]Type)
+}
+
+type StoreMemory struct {
+	metric map[string]Type
+	log    zerolog.Logger
 }
 
 type FileStore struct {
-	MemoryStore
+	memoryStore   StoreMemory
+	storeRestore  bool
+	storeInterval time.Duration
+	storePath     string
 }
 
 type Metric struct {
@@ -36,61 +43,91 @@ type Metric struct {
 	Delta *int64   `json:"delta"`
 }
 
-func New(log zerolog.Logger, storeRestore bool, storeInterval time.Duration, storePath string) MemoryStore {
-	s := MemoryStore{
-		metric:        make(map[string]service.Type),
-		log:           log,
-		storeRestore:  storeRestore,
-		storeInterval: storeInterval,
-		storePath:     storePath,
-	}
-	l := s.log.With().Str("memory", "New").Logger()
-
-	if s.storeRestore {
-		metric, err := getData(s.storePath, log)
-		if err != nil {
-			l.Err(err).Msg("s.getData")
-		}
-
-		if metric != nil {
-			s.metric = metric
-		}
-	}
-
-	fileStore := FileStore{s}
-	go fileStore.dataRetentionPeriodic()
-
-	return s
+type Type struct {
+	Gauge   *float64
+	Counter *int64
 }
 
-func (m MemoryStore) Get(ctx context.Context) (map[string]service.Type, error) {
+func New(log zerolog.Logger, cfg config.Config) Store {
+	l := log.With().Str("memory", "New").Logger()
+
+	store := StoreMemory{
+		metric: make(map[string]Type),
+		log:    log,
+	}
+
+	if len(cfg.StorePath) != 0 {
+		// блок чтения данных из файла.
+		if cfg.StoreRestore {
+			metric, err := getData(cfg.StorePath, log)
+			if err != nil {
+				l.Err(err).Msg("s.getData")
+			}
+
+			if metric != nil {
+				store.metric = metric
+			}
+		}
+
+		// блок инициализации хранилища с записью в файл.
+		fileStore := FileStore{
+			memoryStore:   store,
+			storeRestore:  cfg.StoreRestore,
+			storeInterval: cfg.StoreInterval,
+			storePath:     cfg.StorePath,
+		}
+
+		go fileStore.dataRetentionPeriodic()
+		return fileStore
+	}
+
+	return store
+}
+
+func (m StoreMemory) Get(ctx context.Context) (map[string]Type, error) {
 	return m.metric, nil
 }
 
-func (m MemoryStore) GetOne(ctx context.Context, name string) (service.Type, error) {
+func (m StoreMemory) GetOne(ctx context.Context, name string) (Type, error) {
 	if _, ok := m.metric[name]; !ok {
-		return service.Type{}, fmt.Errorf("problem with m.metric[%s]: %w", name, ErrNotFound)
+		return Type{}, fmt.Errorf("problem with m.metric[%s]: %w", name, ErrNotFound)
 	}
 
 	return m.metric[name], nil
 }
 
-func (m MemoryStore) Update(ctx context.Context, data map[string]service.Type) {
-	l := m.log.With().Str("memory", "DataRetentionPeriodic").Logger()
-
+func (m StoreMemory) Update(ctx context.Context, data map[string]Type) {
 	for k, v := range data {
 		m.metric[k] = v
 	}
+}
 
-	fileStore := FileStore{m}
-	err := fileStore.dataRetention()
+func (f FileStore) Get(ctx context.Context) (map[string]Type, error) {
+	return f.memoryStore.metric, nil
+}
+
+func (f FileStore) GetOne(ctx context.Context, name string) (Type, error) {
+	if _, ok := f.memoryStore.metric[name]; !ok {
+		return Type{}, fmt.Errorf("problem with m.metric[%s]: %w", name, ErrNotFound)
+	}
+
+	return f.memoryStore.metric[name], nil
+}
+
+func (f FileStore) Update(ctx context.Context, data map[string]Type) {
+	l := f.memoryStore.log.With().Str("memory", "Update").Logger()
+	for k, v := range data {
+		f.memoryStore.metric[k] = v
+	}
+
+	err := f.dataRetention()
 	if err != nil {
 		l.Err(err).Msg("m.DataRetention")
 	}
 }
 
 func (f FileStore) dataRetentionPeriodic() {
-	l := f.log.With().Str("memory", "DataRetentionPeriodic").Logger()
+	l := f.memoryStore.log.With().Str("memory", "dataRetentionPeriodic").Logger()
 
 	if f.storeInterval != 0 {
 		ticker := time.NewTicker(f.storeInterval)
@@ -106,8 +143,11 @@ func (f FileStore) dataRetentionPeriodic() {
 
 			}
 
-			file.Write(data)
-			file.Close()
+			_, err = file.Write(data)
+			l.Err(err).Msg("file.Write")
+
+			err = file.Close()
+			l.Err(err).Msg("file.Close")
 		}
 	}
 }
@@ -123,9 +163,10 @@ func (f FileStore) dataRetention() error {
 		if err != nil {
 			return err
 		}
-		defer file.Close()
+		defer func() { err = file.Close() }()
 
-		file.Write(data)
+		_, err = file.Write(data)
+		log.Err(err).Msg("file.Write")
 	}
 
 	return nil
@@ -133,8 +174,8 @@ func (f FileStore) dataRetention() error {
 
 func (f FileStore) toData() ([]byte, error) {
 	var metrics []Metric
-	if len(f.metric) != 0 {
-		for n, v := range f.metric {
+	if len(f.memoryStore.metric) != 0 {
+		for n, v := range f.memoryStore.metric {
 			metric := Metric{
 				Name:  n,
 				Value: v.Gauge,
@@ -155,7 +196,7 @@ func (f FileStore) toData() ([]byte, error) {
 	return data, nil
 }
 
-func getData(pathFile string, log zerolog.Logger) (map[string]service.Type, error) {
+func getData(pathFile string, log zerolog.Logger) (map[string]Type, error) {
 	file, err := os.OpenFile(pathFile, os.O_RDONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, err
@@ -167,7 +208,7 @@ func getData(pathFile string, log zerolog.Logger) (map[string]service.Type, erro
 		data = append(data, scanner.Bytes()...)
 	}
 
-	metric := make(map[string]service.Type)
+	metric := make(map[string]Type)
 	if len(data) != 0 {
 		var metrics []Metric
 		err = json.Unmarshal(data, &metrics)
@@ -176,7 +217,7 @@ func getData(pathFile string, log zerolog.Logger) (map[string]service.Type, erro
 		}
 
 		for _, v := range metrics {
-			metric[v.Name] = service.Type{
+			metric[v.Name] = Type{
 				Gauge:   v.Value,
 				Counter: v.Delta,
 			}

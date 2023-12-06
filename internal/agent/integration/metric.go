@@ -16,17 +16,17 @@ import (
 )
 
 type MetricsRequest struct {
-	ID    string `json:"id"`
 	MType string `json:"type"`
 	Delta any    `json:"delta"`
 	Value any    `json:"value"`
+	ID    string `json:"id"`
 }
 
 type Client struct {
-	cfg     config.Config
 	service service.Service
 	http    *resty.Client
 	log     zerolog.Logger
+	cfg     config.Config
 }
 
 func New(cfg config.Config, s service.Service, log zerolog.Logger) *Client {
@@ -116,9 +116,9 @@ func (c *Client) send(req MetricsRequest) error {
 	if err != nil {
 		return err
 	}
-	defer gz.Close()
-	gz.Write(data)
-	gz.Close()
+	defer func() { err = gz.Close() }()
+	_, err = gz.Write(data)
+	err = gz.Close()
 
 	request := c.http.R().SetHeader("Content-Type", "application/json")
 	request.SetHeader("Content-Encoding", "gzip")
@@ -131,7 +131,7 @@ func (c *Client) send(req MetricsRequest) error {
 	if err != nil {
 		return err
 	}
-	defer res.RawBody().Close()
+	defer func() { err = res.RawBody().Close() }()
 
 	if res.StatusCode() != http.StatusOK {
 		return fmt.Errorf("expected status %d, got: %d", http.StatusOK, res.StatusCode())

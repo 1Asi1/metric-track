@@ -2,11 +2,17 @@ package config
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/rs/zerolog"
+)
+
+const (
+	intervalReport = 10
+	intervalPull   = 2
 )
 
 type Config struct {
@@ -21,8 +27,8 @@ func New(log zerolog.Logger) (Config, error) {
 	var cfg Config
 
 	add := flag.String("a", "localhost:8080", "address and port to run agent")
-	rep := flag.Int("r", 10, "report agent interval")
-	pull := flag.Int("p", 2, "pull agent interval")
+	rep := flag.Int("r", intervalReport, "report agent interval")
+	pull := flag.Int("p", intervalPull, "pull agent interval")
 	flag.Parse()
 
 	metricServerAddrEnv, ok := os.LookupEnv("ADDRESS")
@@ -39,7 +45,7 @@ func New(log zerolog.Logger) (Config, error) {
 		pI, err := strconv.Atoi(pollIntervalEnv)
 		if err != nil {
 			l.Error().Err(err).Msgf("strconv.Atoi, poll interval value: %s", pollIntervalEnv)
-			return Config{}, err
+			return Config{}, fmt.Errorf("strconv.Atoi: %w", err)
 		}
 
 		cfg.PollInterval = time.Duration(pI) * time.Second
@@ -52,7 +58,7 @@ func New(log zerolog.Logger) (Config, error) {
 		rI, err := strconv.Atoi(reportIntervalEnv)
 		if err != nil {
 			l.Error().Err(err).Msgf("strconv.Atoi, report interval value: %s", reportIntervalEnv)
-			return Config{}, err
+			return Config{}, fmt.Errorf("strconv.Atoi: %w", err)
 		}
 
 		cfg.ReportInterval = time.Duration(rI) * time.Second

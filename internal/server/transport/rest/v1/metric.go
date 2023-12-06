@@ -12,6 +12,7 @@ import (
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
 	"github.com/1Asi1/metric-track.git/internal/server/service"
 	"github.com/go-chi/chi/v5"
+	"github.com/rs/zerolog/log"
 )
 
 func (h V1) GetMetric(w http.ResponseWriter, r *http.Request) {
@@ -23,7 +24,8 @@ func (h V1) GetMetric(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, res)
+	_, err = fmt.Fprint(w, res)
+	log.Err(err).Msg("fmt.Fprint")
 }
 
 func (h V1) GetOneMetric(w http.ResponseWriter, r *http.Request) {
@@ -60,11 +62,13 @@ func (h V1) GetOneMetric(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	if m == service.Gauge {
-		fmt.Fprint(w, *res.Value)
+		_, err = fmt.Fprint(w, *res.Value)
+		log.Err(err).Msg("fmt.Fprint")
 		return
 	}
 
-	fmt.Fprint(w, *res.Delta)
+	_, err = fmt.Fprint(w, *res.Delta)
+	log.Err(err).Msg("fmt.Fprint")
 }
 
 func (h V1) UpdateMetric(w http.ResponseWriter, r *http.Request) {
@@ -103,7 +107,8 @@ func (h V1) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, v)
+	_, err = fmt.Fprint(w, v)
+	log.Err(err).Msg("fmt.Fprint")
 }
 
 func (h V1) GetOneMetric2(w http.ResponseWriter, r *http.Request) {
@@ -118,7 +123,8 @@ func (h V1) GetOneMetric2(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer gz.Close()
+		defer func() { err = gz.Close() }()
+
 		reader = gz
 	} else {
 		reader = r.Body
@@ -168,7 +174,8 @@ func (h V1) GetOneMetric2(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	w.Write(res)
+	_, err = w.Write(res)
+	l.Err(err).Msg("w.Write")
 }
 
 func (h V1) UpdateMetric2(w http.ResponseWriter, r *http.Request) {
@@ -183,7 +190,7 @@ func (h V1) UpdateMetric2(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer gz.Close()
+		defer func() { err = gz.Close() }()
 		reader = gz
 	} else {
 		reader = r.Body
@@ -227,5 +234,6 @@ func (h V1) UpdateMetric2(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	w.Write(res)
+	_, err = w.Write(res)
+	l.Err(err).Msg("w.Write")
 }
