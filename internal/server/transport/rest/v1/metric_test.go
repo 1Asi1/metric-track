@@ -13,6 +13,7 @@ import (
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-resty/resty/v2"
+	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +34,8 @@ func newLogger() zerolog.Logger {
 func TestV1_UpdateMetric(t *testing.T) {
 	l := newLogger()
 	st := memory.New(l, config.Config{})
-	se := service.New(st, l)
+	db := sqlx.DB{}
+	se := service.New(st, &db, l)
 
 	router := chi.NewRouter()
 	h := rest.Handler{
@@ -87,7 +89,8 @@ func TestV1_UpdateMetric(t *testing.T) {
 func TestV1_UpdateMetric2(t *testing.T) {
 	l := newLogger()
 	st := memory.New(l, config.Config{})
-	se := service.New(st, l)
+	db := sqlx.DB{}
+	se := service.New(st, &db, l)
 
 	router := chi.NewRouter()
 	h := rest.Handler{

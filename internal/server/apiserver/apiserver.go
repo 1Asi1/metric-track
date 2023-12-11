@@ -5,6 +5,7 @@ import (
 
 	"github.com/1Asi1/metric-track.git/internal/server/config"
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
+	"github.com/1Asi1/metric-track.git/internal/server/repository/postgres"
 	"github.com/1Asi1/metric-track.git/internal/server/service"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest/v1"
@@ -31,14 +32,29 @@ func (s *APIServer) Run() error {
 	l := s.log.With().Str("apiserver", "Run").Logger()
 
 	memoryStore := memory.New(s.log, s.cfg)
-	metricS := service.New(memoryStore, s.log)
+
+	psqlCfg := postgres.Config{
+		ConnURL: s.cfg.PostgresConnURL,
+		Logger:  s.log,
+	}
+	postgresql, err := postgres.New(psqlCfg)
+	if err != nil {
+		l.Info().Msg("postgres.New error")
+	}
+	defer func() {
+		if err = postgresql.Close(); err != nil {
+			l.Err(err).Msg("postgresql.Close")
+		}
+	}()
+
+	metricS := service.New(memoryStore, postgresql.DB, s.log)
 	route := rest.New(s.mux, metricS, s.log)
 
 	route.Mux.Use(midlog.Logger)
 	v1.New(route)
 
 	l.Info().Msgf("server start: http://%s", s.cfg.MetricServerAddr)
-	if err := http.ListenAndServe(s.cfg.MetricServerAddr, route.Mux); err != nil {
+	if err = http.ListenAndServe(s.cfg.MetricServerAddr, route.Mux); err != nil {
 		l.Error().Err(err).Msg("http.ListenAndServe")
 		return err
 	}

@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
+	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog"
 )
 
@@ -42,12 +44,14 @@ type Store interface {
 
 type Service struct {
 	Store Store
+	DB    *sqlx.DB
 	log   zerolog.Logger
 }
 
-func New(store Store, log zerolog.Logger) Service {
+func New(store Store, db *sqlx.DB, log zerolog.Logger) Service {
 	return Service{
 		Store: store,
+		DB:    db,
 		log:   log,
 	}
 }
@@ -126,6 +130,18 @@ func (s Service) UpdateMetric(ctx context.Context, req MetricsRequest) (Metrics,
 		Value: value.Gauge,
 		Delta: value.Counter,
 	}, nil
+}
+
+func (s Service) Ping(ctx context.Context) error {
+	if s.DB == nil {
+		return errors.New("s.DB nil value")
+	}
+
+	if err := s.DB.Ping(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s Service) parseToHTML(data map[string]memory.Type) string {

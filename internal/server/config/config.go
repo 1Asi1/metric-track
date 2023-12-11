@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"flag"
 	"os"
 	"strconv"
@@ -9,11 +10,16 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const (
+	nullPostgreURL = "NULL"
+)
+
 type Config struct {
 	MetricServerAddr string
 	StoreInterval    time.Duration
 	StorePath        string
 	StoreRestore     bool
+	PostgresConnURL  string
 }
 
 func New(log zerolog.Logger) (Config, error) {
@@ -24,6 +30,7 @@ func New(log zerolog.Logger) (Config, error) {
 	store := flag.Int("i", 300, "store interval")
 	path := flag.String("f", "./tmp/metrics-db.json", "path store file")
 	restore := flag.Bool("r", true, "store restore")
+	postgresql := flag.String("d", nullPostgreURL, "url connecting to postgres")
 	flag.Parse()
 
 	metricServerAddrEnv, ok := os.LookupEnv("ADDRESS")
@@ -55,6 +62,18 @@ func New(log zerolog.Logger) (Config, error) {
 	} else {
 		l.Info().Msgf("store path: %s", *path)
 		cfg.StorePath = *path
+	}
+
+	postgresqlAddrEnv, ok := os.LookupEnv("DATABASE_DSN")
+	if ok {
+		l.Info().Msgf("postgresql address value: %s", postgresqlAddrEnv)
+		cfg.PostgresConnURL = postgresqlAddrEnv
+	} else {
+		l.Info().Msgf("postgresql address value: %s", *postgresql)
+		if *postgresql == nullPostgreURL {
+			l.Err(errors.New("postgres url null"))
+		}
+		cfg.PostgresConnURL = *postgresql
 	}
 
 	l.Info().Msgf("store restore: %v", *restore)

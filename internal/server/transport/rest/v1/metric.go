@@ -25,7 +25,9 @@ func (h V1) GetMetric(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, err = fmt.Fprint(w, res)
-	log.Err(err).Msg("fmt.Fprint")
+	if err != nil {
+		log.Err(err).Msg("fmt.Fprint")
+	}
 }
 
 func (h V1) GetOneMetric(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +70,9 @@ func (h V1) GetOneMetric(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = fmt.Fprint(w, *res.Delta)
-	log.Err(err).Msg("fmt.Fprint")
+	if err != nil {
+		log.Err(err).Msg("fmt.Fprint")
+	}
 }
 
 func (h V1) UpdateMetric(w http.ResponseWriter, r *http.Request) {
@@ -108,7 +112,9 @@ func (h V1) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, err = fmt.Fprint(w, v)
-	log.Err(err).Msg("fmt.Fprint")
+	if err != nil {
+		log.Err(err).Msg("fmt.Fprint")
+	}
 }
 
 func (h V1) GetOneMetric2(w http.ResponseWriter, r *http.Request) {
@@ -175,7 +181,9 @@ func (h V1) GetOneMetric2(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	_, err = w.Write(res)
-	l.Err(err).Msg("w.Write")
+	if err != nil {
+		l.Err(err).Msg("w.Write")
+	}
 }
 
 func (h V1) UpdateMetric2(w http.ResponseWriter, r *http.Request) {
@@ -235,5 +243,23 @@ func (h V1) UpdateMetric2(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	_, err = w.Write(res)
-	l.Err(err).Msg("w.Write")
+	if err != nil {
+		l.Err(err).Msg("w.Write")
+	}
+}
+
+func (h V1) Ping(w http.ResponseWriter, r *http.Request) {
+	l := h.handler.Log.With().Str("v1/metric", "Ping").Logger()
+
+	err := h.service.Ping(r.Context())
+	if err != nil {
+		l.Error().Err(err).Msg("postgres.New")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write([]byte(""))
+	if err != nil {
+		l.Err(err).Msg("w.Write")
+	}
 }

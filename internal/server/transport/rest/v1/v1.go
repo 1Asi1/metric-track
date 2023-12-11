@@ -25,6 +25,7 @@ func New(h rest.Handler) {
 func (h V1) registerV1Route() {
 	h.handler.Mux.Route("/", func(r chi.Router) {
 		r.Get("/", h.GetMetric)
+		r.Get("/ping", h.Ping)
 		r.Get("/value/{metric}/{name}", h.GetOneMetric)
 		r.Post("/update/{metric}/{name}/{value}", h.UpdateMetric)
 		r.Post("/value/", h.GetOneMetric2)
