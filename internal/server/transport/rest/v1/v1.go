@@ -30,5 +30,6 @@ func (h V1) registerV1Route() {
 		r.Post("/update/{metric}/{name}/{value}", h.UpdateMetric)
 		r.Post("/value/", h.GetOneMetric2)
 		r.Post("/update/", h.UpdateMetric2)
+		r.Post("/updates/", h.Updates)
 	})
 }

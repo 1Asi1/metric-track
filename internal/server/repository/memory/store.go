@@ -24,6 +24,7 @@ type Store interface {
 	GetOne(ctx context.Context, name string) (Type, error)
 	Update(ctx context.Context, data map[string]Type)
 	Ping() error
+	Updates(ctx context.Context, req []Metric) error
 }
 
 type StoreMemory struct {
@@ -107,6 +108,10 @@ func (m StoreMemory) Ping() error {
 	return errors.New("db not included")
 }
 
+func (m StoreMemory) Updates(ctx context.Context, req []Metric) error {
+	return nil
+}
+
 func (f FileStore) Get(ctx context.Context) (map[string]Type, error) {
 	return f.memoryStore.metric, nil
 }
@@ -133,6 +138,10 @@ func (f FileStore) Update(ctx context.Context, data map[string]Type) {
 
 func (f FileStore) Ping() error {
 	return errors.New("db not included")
+}
+
+func (f FileStore) Updates(ctx context.Context, req []Metric) error {
+	return nil
 }
 
 func (f FileStore) dataRetentionPeriodic() {

@@ -263,3 +263,51 @@ func (h V1) Ping(w http.ResponseWriter, r *http.Request) {
 		l.Err(err).Msg("w.Write")
 	}
 }
+
+func (h V1) Updates(w http.ResponseWriter, r *http.Request) {
+	l := h.handler.Log.With().Str("v1/metric", "UpdateMetric2").Logger()
+
+	var req []service.MetricsRequest
+	var reader io.Reader
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		gz, err := gzip.NewReader(r.Body)
+		if err != nil {
+			l.Error().Err(err).Msgf("gzip.NewReader, request value: %+v", r)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer func() { err = gz.Close() }()
+		reader = gz
+	} else {
+		reader = r.Body
+	}
+
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		l.Error().Err(err).Msgf("io.ReadAll, request value: %+v", r)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = json.Unmarshal(body, &req)
+	if err != nil {
+		l.Error().Err(err).Msgf("json.Unmarshal, request value: %+v", r)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = h.service.Updates(r.Context(), req)
+	if err != nil {
+		l.Error().Err(err).Msgf("h.service.Updates, request value: %+v", req)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	_, err = w.Write([]byte(""))
+	if err != nil {
+		l.Err(err).Msg("w.Write")
+	}
+}

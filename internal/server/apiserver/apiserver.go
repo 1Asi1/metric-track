@@ -34,8 +34,11 @@ func (s *APIServer) Run() error {
 	var store service.Store
 	if s.cfg.PostgresConnURL != config.NullPostgreURL {
 		psqlCfg := postgres.Config{
-			ConnURL: s.cfg.PostgresConnURL,
-			Logger:  s.log,
+			ConnURL:         s.cfg.PostgresConnURL,
+			Logger:          s.log,
+			MaxConn:         30,
+			MaxConnLifeTime: 10,
+			MaxConnIdleTime: 10,
 		}
 		postgresql, err := postgres.New(psqlCfg, s.log)
 		if err != nil {

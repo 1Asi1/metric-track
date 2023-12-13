@@ -68,6 +68,10 @@ func (c *Client) SendMetricPeriodic() {
 				}
 			}
 
+			if err := c.sendToServerBatch(res, count); err != nil {
+				l.Error().Err(err).Msgf("c.sendToServerBatch")
+			}
+
 			count = 0
 		}
 	}
@@ -107,6 +111,62 @@ func (c *Client) send(req MetricsRequest) error {
 	url := fmt.Sprintf("http://%s/update/", c.cfg.MetricServerAddr)
 
 	data, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+
+	var buf bytes.Buffer
+	gz, err := gzip.NewWriterLevel(&buf, gzip.BestSpeed)
+	if err != nil {
+		return err
+	}
+	defer func() { err = gz.Close() }()
+	_, err = gz.Write(data)
+	err = gz.Close()
+
+	request := c.http.R().SetHeader("Content-Type", "application/json")
+	request.SetHeader("Content-Encoding", "gzip")
+	request.SetBody(&buf)
+	request.Method = resty.MethodPost
+	request.URL = url
+	defer c.http.SetCloseConnection(true)
+
+	res, err := request.Send()
+	if err != nil {
+		return err
+	}
+	defer func() { err = res.RawBody().Close() }()
+
+	if res.StatusCode() != http.StatusOK {
+		return fmt.Errorf("expected status %d, got: %d", http.StatusOK, res.StatusCode())
+	}
+
+	return nil
+}
+
+func (c *Client) sendToServerBatch(req service.Metric, count int) error {
+	metrics := make([]MetricsRequest, 0)
+	for k, v := range req.Type {
+		if k != "PollCount" {
+			metrics = append(metrics, MetricsRequest{
+				ID:    k,
+				MType: "gauge",
+				Value: v,
+				Delta: nil,
+			})
+
+			metrics = append(metrics, MetricsRequest{
+				ID:    k,
+				MType: "counter",
+				Delta: count,
+				Value: nil,
+			})
+		}
+	}
+
+	url := fmt.Sprintf("http://%s/updates/", c.cfg.MetricServerAddr)
+
+	data, err := json.Marshal(metrics)
 	if err != nil {
 		return err
 	}

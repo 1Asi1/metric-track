@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/1Asi1/metric-track.git/internal/server/models"
@@ -17,6 +18,8 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog"
 )
+
+type Name string
 
 // Config структура с полями для подключения к базе данных.
 type Config struct {
@@ -37,15 +40,16 @@ var migrationsDir embed.FS
 
 type Postgres struct {
 	*sqlx.DB
+	sync.RWMutex
 	log zerolog.Logger
 }
 
-func New(cfg Config, log zerolog.Logger) (Postgres, error) {
+func New(cfg Config, log zerolog.Logger) (*Postgres, error) {
 	l := cfg.Logger.With().Str("postgres", "New").Logger()
 
 	db, err := sqlx.Connect("pgx", cfg.ConnURL)
 	if err != nil {
-		return Postgres{}, fmt.Errorf("postgres connection error: %w", err)
+		return &Postgres{}, fmt.Errorf("postgres connection error: %w", err)
 	}
 	l.Info().Msg("succeeded in connecting to postgres")
 
@@ -54,10 +58,10 @@ func New(cfg Config, log zerolog.Logger) (Postgres, error) {
 	db.SetMaxOpenConns(cfg.MaxConn)
 
 	if err = runMigrations(cfg.ConnURL); err != nil {
-		return Postgres{}, fmt.Errorf("runMigrations error: %w", err)
+		return &Postgres{}, fmt.Errorf("runMigrations error: %w", err)
 	}
 
-	return Postgres{DB: db, log: log}, nil
+	return &Postgres{DB: db, log: log}, nil
 }
 
 func runMigrations(dsn string) error {
@@ -78,7 +82,7 @@ func runMigrations(dsn string) error {
 	return nil
 }
 
-func (p Postgres) Get(ctx context.Context) (map[string]memory.Type, error) {
+func (p *Postgres) Get(ctx context.Context) (map[string]memory.Type, error) {
 	query := `
 	SELECT
 	    id,
@@ -92,17 +96,18 @@ func (p Postgres) Get(ctx context.Context) (map[string]memory.Type, error) {
 	}
 
 	result := make(map[string]memory.Type)
-	for _, v := range models {
-		result[v.ID] = memory.Type{
-			Gauge:   v.Gauge,
-			Counter: v.Counter,
+	if len(models) != 0 {
+		for _, v := range models {
+			result[v.ID] = memory.Type{
+				Gauge:   v.Gauge,
+				Counter: v.Counter,
+			}
 		}
 	}
-
 	return result, nil
 }
 
-func (p Postgres) GetOne(ctx context.Context, name string) (memory.Type, error) {
+func (p *Postgres) GetOne(ctx context.Context, name string) (memory.Type, error) {
 	query := `
 	SELECT
 	    gauge,
@@ -119,21 +124,19 @@ func (p Postgres) GetOne(ctx context.Context, name string) (memory.Type, error) 
 	return model, nil
 }
 
-func (p Postgres) Update(ctx context.Context, data map[string]memory.Type) {
+func (p *Postgres) Update(ctx context.Context, data map[string]memory.Type) {
+
 	l := p.log.With().Str("postgres", "Update").Logger()
 
-	var model models.Metric
-	for k, v := range data {
-		model = models.Metric{
-			ID:      k,
-			Gauge:   v.Gauge,
-			Counter: v.Counter,
-		}
+	name := fmt.Sprintf("%v", ctx.Value(Name("name")))
+	model := models.Metric{
+		ID:      name,
+		Gauge:   data[name].Gauge,
+		Counter: data[name].Counter,
 	}
-
+	p.Lock()
 	chek, _ := p.GetOne(context.Background(), model.ID)
 	if reflect.DeepEqual(chek, memory.Type{}) {
-
 		query := `
 		INSERT INTO tbl_metrics(id,gauge,counter)
 		VALUES (:id, :gauge, :counter)`
@@ -161,7 +164,7 @@ func (p Postgres) Update(ctx context.Context, data map[string]memory.Type) {
 		WHERE
 		    id = :id`
 
-		result, err := p.DB.NamedExecContext(ctx, query, model)
+		result, err := p.DB.NamedExecContext(context.Background(), query, model)
 		if err != nil {
 			l.Err(err).Msg("p.db.NamedExecContext")
 		}
@@ -175,10 +178,89 @@ func (p Postgres) Update(ctx context.Context, data map[string]memory.Type) {
 			l.Err(err).Msg("result.RowsAffected")
 		}
 	}
-
-	time.Sleep(1 * time.Second)
+	p.Unlock()
 }
 
-func (p Postgres) Ping() error {
+func (p *Postgres) Ping() error {
 	return p.DB.Ping()
+}
+
+func (p *Postgres) Updates(ctx context.Context, req []memory.Metric) error {
+	l := p.log.With().Str("postgres", "Updates").Logger()
+
+	for _, v := range req {
+		_, err := p.GetOne(context.Background(), v.Name)
+		if err == nil {
+			if err = p.updateMetric(v); err != nil {
+				l.Err(err).Msgf("p.createMetric metric value: %+v", v)
+			}
+		} else {
+			if err = p.createMetric(v); err != nil {
+				l.Err(err).Msgf("p.createMetric metric value: %+v", v)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (p *Postgres) createMetric(req memory.Metric) error {
+	model := models.Metric{
+		ID:      req.Name,
+		Gauge:   req.Value,
+		Counter: req.Delta,
+	}
+
+	query := `
+		INSERT INTO tbl_metrics(id,gauge,counter)
+		VALUES (:id, :gauge, :counter)`
+	p.Lock()
+	result, err := p.DB.NamedExecContext(context.Background(), query, model)
+	if err != nil {
+		return fmt.Errorf("p.DB.ExecContext: %w", err)
+	}
+	p.Unlock()
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("result.RowsAffected: %w", err)
+	}
+
+	if rows == 0 {
+		return fmt.Errorf("model: %+v; rows empty %w", model, errors.New("no rows affected"))
+	}
+	return nil
+}
+
+func (p *Postgres) updateMetric(req memory.Metric) error {
+	model := models.Metric{
+		ID:      req.Name,
+		Gauge:   req.Value,
+		Counter: req.Delta,
+	}
+
+	query := `
+		UPDATE
+		    tbl_metrics
+		SET
+		    gauge = :gauge,
+		    counter = :counter
+		WHERE
+		    id = :id`
+
+	p.Lock()
+	result, err := p.DB.NamedExecContext(context.Background(), query, model)
+	if err != nil {
+		return fmt.Errorf("p.DB.NamedExecContext: %w", err)
+	}
+	p.Unlock()
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("result.RowsAffected: %w", err)
+	}
+
+	if rows == 0 {
+		return fmt.Errorf("rows empty %w", errors.New("no rows affected"))
+	}
+	return nil
 }
