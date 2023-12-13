@@ -1,0 +1,5 @@
+BEGIN TRANSACTION;
+
+DROP TABLE tbl_metrics;
+
+COMMIT;

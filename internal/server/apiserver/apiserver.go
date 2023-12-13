@@ -31,30 +31,35 @@ func New(cfg config.Config, log zerolog.Logger) APIServer {
 func (s *APIServer) Run() error {
 	l := s.log.With().Str("apiserver", "Run").Logger()
 
-	memoryStore := memory.New(s.log, s.cfg)
-
-	psqlCfg := postgres.Config{
-		ConnURL: s.cfg.PostgresConnURL,
-		Logger:  s.log,
-	}
-	postgresql, err := postgres.New(psqlCfg)
-	if err != nil {
-		l.Info().Msg("postgres.New error")
-	}
-	defer func() {
-		if err = postgresql.Close(); err != nil {
-			l.Err(err).Msg("postgresql.Close")
+	var store service.Store
+	if s.cfg.PostgresConnURL != config.NullPostgreURL {
+		psqlCfg := postgres.Config{
+			ConnURL: s.cfg.PostgresConnURL,
+			Logger:  s.log,
 		}
-	}()
+		postgresql, err := postgres.New(psqlCfg, s.log)
+		if err != nil {
+			l.Info().Msg("postgres.New error")
+		}
+		defer func() {
+			if err = postgresql.Close(); err != nil {
+				l.Err(err).Msg("postgresql.Close")
+			}
+		}()
 
-	metricS := service.New(memoryStore, postgresql.DB, s.log)
+		store = postgresql
+	} else {
+		store = memory.New(s.log, s.cfg)
+	}
+
+	metricS := service.New(store, s.log)
 	route := rest.New(s.mux, metricS, s.log)
 
 	route.Mux.Use(midlog.Logger)
 	v1.New(route)
 
 	l.Info().Msgf("server start: http://%s", s.cfg.MetricServerAddr)
-	if err = http.ListenAndServe(s.cfg.MetricServerAddr, route.Mux); err != nil {
+	if err := http.ListenAndServe(s.cfg.MetricServerAddr, route.Mux); err != nil {
 		l.Error().Err(err).Msg("http.ListenAndServe")
 		return err
 	}

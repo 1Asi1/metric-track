@@ -23,6 +23,7 @@ type Store interface {
 	Get(ctx context.Context) (map[string]Type, error)
 	GetOne(ctx context.Context, name string) (Type, error)
 	Update(ctx context.Context, data map[string]Type)
+	Ping() error
 }
 
 type StoreMemory struct {
@@ -102,6 +103,10 @@ func (m StoreMemory) Update(ctx context.Context, data map[string]Type) {
 	}
 }
 
+func (m StoreMemory) Ping() error {
+	return errors.New("db not included")
+}
+
 func (f FileStore) Get(ctx context.Context) (map[string]Type, error) {
 	return f.memoryStore.metric, nil
 }
@@ -124,6 +129,10 @@ func (f FileStore) Update(ctx context.Context, data map[string]Type) {
 	if err != nil {
 		l.Err(err).Msg("m.DataRetention")
 	}
+}
+
+func (f FileStore) Ping() error {
+	return errors.New("db not included")
 }
 
 func (f FileStore) dataRetentionPeriodic() {

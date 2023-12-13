@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"flag"
 	"os"
 	"strconv"
@@ -11,7 +10,7 @@ import (
 )
 
 const (
-	nullPostgreURL = "NULL"
+	NullPostgreURL = "NULL"
 )
 
 type Config struct {
@@ -30,7 +29,7 @@ func New(log zerolog.Logger) (Config, error) {
 	store := flag.Int("i", 300, "store interval")
 	path := flag.String("f", "./tmp/metrics-db.json", "path store file")
 	restore := flag.Bool("r", true, "store restore")
-	postgresql := flag.String("d", nullPostgreURL, "url connecting to postgres")
+	postgresql := flag.String("d", NullPostgreURL, "url connecting to postgres")
 	flag.Parse()
 
 	metricServerAddrEnv, ok := os.LookupEnv("ADDRESS")
@@ -70,9 +69,7 @@ func New(log zerolog.Logger) (Config, error) {
 		cfg.PostgresConnURL = postgresqlAddrEnv
 	} else {
 		l.Info().Msgf("postgresql address value: %s", *postgresql)
-		if *postgresql == nullPostgreURL {
-			l.Err(errors.New("postgres url null"))
-		}
+
 		cfg.PostgresConnURL = *postgresql
 	}
 
