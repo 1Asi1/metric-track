@@ -14,6 +14,8 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx"
 	_ "github.com/jackc/pgx/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog"
@@ -46,11 +48,27 @@ type Postgres struct {
 
 func New(cfg Config, log zerolog.Logger) (*Postgres, error) {
 	l := cfg.Logger.With().Str("postgres", "New").Logger()
-
-	db, err := sqlx.Connect("pgx", cfg.ConnURL)
-	if err != nil {
-		return &Postgres{}, fmt.Errorf("postgres connection error: %w", err)
+	var db *sqlx.DB
+	var err error
+	for i := 1; ; i += 2 {
+		ticker := time.NewTicker(time.Duration(i) * time.Second)
+		db, err = sqlx.Connect("pgx", cfg.ConnURL)
+		if err != nil {
+			pgErrCode := (err).(pgx.PgError).Code
+			if pgErrCode == pgerrcode.InvalidAuthorizationSpecification {
+				l.Info().Msgf("try connection sec: %d", i)
+				<-ticker.C
+				l.Err(err).Msg("sqlx.Connect try agan...")
+				if i == 5 {
+					l.Error().Msg("sqlx.Connect try cancel")
+					return &Postgres{}, fmt.Errorf("postgres connection error: %w", err)
+				}
+				continue
+			}
+		}
+		break
 	}
+
 	l.Info().Msg("succeeded in connecting to postgres")
 
 	db.SetConnMaxLifetime(cfg.MaxConnLifeTime)
@@ -214,12 +232,14 @@ func (p *Postgres) createMetric(req memory.Metric) error {
 	query := `
 		INSERT INTO tbl_metrics(id,gauge,counter)
 		VALUES (:id, :gauge, :counter)`
+
 	p.Lock()
 	result, err := p.DB.NamedExecContext(context.Background(), query, model)
 	if err != nil {
 		return fmt.Errorf("p.DB.ExecContext: %w", err)
 	}
 	p.Unlock()
+
 	rows, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("result.RowsAffected: %w", err)
@@ -228,6 +248,7 @@ func (p *Postgres) createMetric(req memory.Metric) error {
 	if rows == 0 {
 		return fmt.Errorf("model: %+v; rows empty %w", model, errors.New("no rows affected"))
 	}
+
 	return nil
 }
 
@@ -262,5 +283,6 @@ func (p *Postgres) updateMetric(req memory.Metric) error {
 	if rows == 0 {
 		return fmt.Errorf("rows empty %w", errors.New("no rows affected"))
 	}
+
 	return nil
 }
