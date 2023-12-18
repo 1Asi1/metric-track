@@ -2,11 +2,10 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"embed"
 	"errors"
 	"fmt"
-	"reflect"
-	"sync"
 	"time"
 
 	"github.com/1Asi1/metric-track.git/internal/server/models"
@@ -19,6 +18,15 @@ import (
 	_ "github.com/jackc/pgx/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog"
+)
+
+const (
+	countStep      = 2
+	retryStopCount = 5
+)
+
+var (
+	count = 1
 )
 
 type Name string
@@ -40,31 +48,44 @@ type Config struct {
 //go:embed migrations/*.sql
 var migrationsDir embed.FS
 
-type Postgres struct {
-	*sqlx.DB
-	sync.RWMutex
+type storage interface {
+	SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
+	GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
+	NamedExecContext(ctx context.Context, query string, arg interface{}) (sql.Result, error)
+	Ping() error
+	Close() error
+}
+
+type Store struct {
+	storage
 	log zerolog.Logger
 }
 
-func New(cfg Config, log zerolog.Logger) (*Postgres, error) {
+func New(cfg Config, log zerolog.Logger) (*Store, error) {
 	l := cfg.Logger.With().Str("postgres", "New").Logger()
 	var db *sqlx.DB
 	var err error
-	for i := 1; ; i += 2 {
-		ticker := time.NewTicker(time.Duration(i) * time.Second)
+	for ; ; count += countStep {
+		ticker := time.NewTicker(time.Duration(count) * time.Second)
 		db, err = sqlx.Connect("pgx", cfg.ConnURL)
 		if err != nil {
+			if _, ok := (err).(pgx.PgError); !ok {
+				return &Store{}, fmt.Errorf("postgres connection error: %w", err)
+			}
+
 			pgErrCode := (err).(pgx.PgError).Code
 			if pgErrCode == pgerrcode.InvalidAuthorizationSpecification {
-				l.Info().Msgf("try connection sec: %d", i)
+				l.Info().Msgf("try connection sec: %d", count)
 				<-ticker.C
 				l.Err(err).Msg("sqlx.Connect try agan...")
-				if i == 5 {
+				if count == retryStopCount {
 					l.Error().Msg("sqlx.Connect try cancel")
-					return &Postgres{}, fmt.Errorf("postgres connection error: %w", err)
+					return &Store{}, fmt.Errorf("postgres connection error: %w", err)
 				}
 				continue
 			}
+
+			return &Store{}, fmt.Errorf("postgres connection error: %w", err)
 		}
 		break
 	}
@@ -76,10 +97,10 @@ func New(cfg Config, log zerolog.Logger) (*Postgres, error) {
 	db.SetMaxOpenConns(cfg.MaxConn)
 
 	if err = runMigrations(cfg.ConnURL); err != nil {
-		return &Postgres{}, fmt.Errorf("runMigrations error: %w", err)
+		return &Store{}, fmt.Errorf("runMigrations error: %w", err)
 	}
 
-	return &Postgres{DB: db, log: log}, nil
+	return &Store{storage: db, log: log}, nil
 }
 
 func runMigrations(dsn string) error {
@@ -100,7 +121,7 @@ func runMigrations(dsn string) error {
 	return nil
 }
 
-func (p *Postgres) Get(ctx context.Context) (map[string]memory.Type, error) {
+func (s *Store) Get(ctx context.Context) (map[string]memory.Type, error) {
 	query := `
 	SELECT
 	    id,
@@ -109,7 +130,7 @@ func (p *Postgres) Get(ctx context.Context) (map[string]memory.Type, error) {
 	FROM tbl_metrics
 `
 	var models []models.Metric
-	if err := p.DB.SelectContext(ctx, &models, query); err != nil {
+	if err := s.SelectContext(ctx, &models, query); err != nil {
 		return nil, fmt.Errorf("Get %w;", err)
 	}
 
@@ -125,7 +146,7 @@ func (p *Postgres) Get(ctx context.Context) (map[string]memory.Type, error) {
 	return result, nil
 }
 
-func (p *Postgres) GetOne(ctx context.Context, name string) (memory.Type, error) {
+func (s *Store) GetOne(ctx context.Context, name string) (memory.Type, error) {
 	query := `
 	SELECT
 	    gauge,
@@ -134,7 +155,7 @@ func (p *Postgres) GetOne(ctx context.Context, name string) (memory.Type, error)
 	WHERE id = $1
 `
 	var model memory.Type
-	err := p.DB.GetContext(ctx, &model, query, name)
+	err := s.GetContext(ctx, &model, query, name)
 	if err != nil {
 		return memory.Type{}, fmt.Errorf("GetOne: %w", err)
 	}
@@ -142,9 +163,9 @@ func (p *Postgres) GetOne(ctx context.Context, name string) (memory.Type, error)
 	return model, nil
 }
 
-func (p *Postgres) Update(ctx context.Context, data map[string]memory.Type) {
+func (s *Store) Update(ctx context.Context, data map[string]memory.Type) {
 
-	l := p.log.With().Str("postgres", "Update").Logger()
+	l := s.log.With().Str("postgres", "Update").Logger()
 
 	name := fmt.Sprintf("%v", ctx.Value(Name("name")))
 	model := models.Metric{
@@ -152,137 +173,72 @@ func (p *Postgres) Update(ctx context.Context, data map[string]memory.Type) {
 		Gauge:   data[name].Gauge,
 		Counter: data[name].Counter,
 	}
-	p.Lock()
-	chek, _ := p.GetOne(context.Background(), model.ID)
-	if reflect.DeepEqual(chek, memory.Type{}) {
-		query := `
+
+	query := `
 		INSERT INTO tbl_metrics(id,gauge,counter)
-		VALUES (:id, :gauge, :counter)`
-
-		result, err := p.DB.NamedExecContext(context.Background(), query, model)
-		if err != nil {
-			l.Err(err).Msg("p.db.NamedExecContext")
-		}
-
-		rows, err := result.RowsAffected()
-		if err != nil {
-			l.Err(err).Msg("result.RowsAffected")
-		}
-
-		if rows == 0 {
-			l.Err(err).Msg("result.RowsAffected")
-		}
-	} else {
-		query := `
-		UPDATE
-		    tbl_metrics
+		VALUES (:id, :gauge, :counter)
+		ON CONFLICT (id) DO UPDATE
 		SET
-		    gauge = :gauge,
-		    counter = :counter
-		WHERE
-		    id = :id`
+		    gauge = EXCLUDED.gauge,
+		    counter = EXCLUDED.counter`
 
-		result, err := p.DB.NamedExecContext(context.Background(), query, model)
-		if err != nil {
-			l.Err(err).Msg("p.db.NamedExecContext")
-		}
-
-		rows, err := result.RowsAffected()
-		if err != nil {
-			l.Err(err).Msg("result.RowsAffected")
-		}
-
-		if rows == 0 {
-			l.Err(err).Msg("result.RowsAffected")
-		}
+	result, err := s.NamedExecContext(context.Background(), query, model)
+	if err != nil {
+		l.Err(err).Msg("p.db.NamedExecContext")
+		return
 	}
-	p.Unlock()
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		l.Err(err).Msg("result.RowsAffected")
+		return
+	}
+
+	if rows == 0 {
+		l.Err(err).Msg("result.RowsAffected")
+		return
+	}
 }
 
-func (p *Postgres) Ping() error {
-	return p.DB.Ping()
-}
-
-func (p *Postgres) Updates(ctx context.Context, req []memory.Metric) error {
-	l := p.log.With().Str("postgres", "Updates").Logger()
-
+func (s *Store) Updates(ctx context.Context, req []memory.Metric) error {
 	for _, v := range req {
-		_, err := p.GetOne(context.Background(), v.Name)
-		if err == nil {
-			if err = p.updateMetric(v); err != nil {
-				l.Err(err).Msgf("p.createMetric metric value: %+v", v)
-			}
-		} else {
-			if err = p.createMetric(v); err != nil {
-				l.Err(err).Msgf("p.createMetric metric value: %+v", v)
-			}
+		model := models.Metric{
+			ID:      v.Name,
+			Gauge:   v.Value,
+			Counter: v.Delta,
 		}
-	}
 
-	return nil
-}
-
-func (p *Postgres) createMetric(req memory.Metric) error {
-	model := models.Metric{
-		ID:      req.Name,
-		Gauge:   req.Value,
-		Counter: req.Delta,
-	}
-
-	query := `
+		query := `
 		INSERT INTO tbl_metrics(id,gauge,counter)
-		VALUES (:id, :gauge, :counter)`
+		VALUES (:id, :gauge, :counter)
+		ON CONFLICT (id) DO UPDATE
+		SET
+		    gauge = EXCLUDED.gauge,
+		    counter = EXCLUDED.counter`
 
-	p.Lock()
-	result, err := p.DB.NamedExecContext(context.Background(), query, model)
-	if err != nil {
-		return fmt.Errorf("p.DB.ExecContext: %w", err)
-	}
-	p.Unlock()
+		result, err := s.NamedExecContext(context.Background(), query, model)
+		if err != nil {
+			return fmt.Errorf("p.DB.ExecContext: %w", err)
+		}
 
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("result.RowsAffected: %w", err)
-	}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("result.RowsAffected: %w", err)
+		}
 
-	if rows == 0 {
-		return fmt.Errorf("model: %+v; rows empty %w", model, errors.New("no rows affected"))
+		if rows == 0 {
+			return fmt.Errorf("model: %+v; rows empty %w", model, errors.New("no rows affected"))
+		}
+
 	}
 
 	return nil
 }
 
-func (p *Postgres) updateMetric(req memory.Metric) error {
-	model := models.Metric{
-		ID:      req.Name,
-		Gauge:   req.Value,
-		Counter: req.Delta,
-	}
+func (s *Store) Ping() error {
+	return s.storage.Ping()
+}
 
-	query := `
-		UPDATE
-		    tbl_metrics
-		SET
-		    gauge = :gauge,
-		    counter = :counter
-		WHERE
-		    id = :id`
-
-	p.Lock()
-	result, err := p.DB.NamedExecContext(context.Background(), query, model)
-	if err != nil {
-		return fmt.Errorf("p.DB.NamedExecContext: %w", err)
-	}
-	p.Unlock()
-
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("result.RowsAffected: %w", err)
-	}
-
-	if rows == 0 {
-		return fmt.Errorf("rows empty %w", errors.New("no rows affected"))
-	}
-
-	return nil
+func (s *Store) Close() error {
+	return s.storage.Close()
 }

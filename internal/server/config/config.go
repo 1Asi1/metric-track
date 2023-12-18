@@ -9,10 +9,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const (
-	NullPostgreURL = "NULL"
-)
-
 type Config struct {
 	MetricServerAddr string
 	StoreInterval    time.Duration
@@ -29,7 +25,7 @@ func New(log zerolog.Logger) (Config, error) {
 	store := flag.Int("i", 300, "store interval")
 	path := flag.String("f", "./tmp/metrics-db.json", "path store file")
 	restore := flag.Bool("r", true, "store restore")
-	postgresql := flag.String("d", NullPostgreURL, "url connecting to postgres")
+	postgresql := flag.String("d", "", "url connecting to postgres")
 	flag.Parse()
 
 	metricServerAddrEnv, ok := os.LookupEnv("ADDRESS")
@@ -65,11 +61,8 @@ func New(log zerolog.Logger) (Config, error) {
 
 	postgresqlAddrEnv, ok := os.LookupEnv("DATABASE_DSN")
 	if ok {
-		l.Info().Msgf("postgresql address value: %s", postgresqlAddrEnv)
 		cfg.PostgresConnURL = postgresqlAddrEnv
 	} else {
-		l.Info().Msgf("postgresql address value: %s", *postgresql)
-
 		cfg.PostgresConnURL = *postgresql
 	}
 

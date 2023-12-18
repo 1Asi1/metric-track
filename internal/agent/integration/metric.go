@@ -176,9 +176,12 @@ func (c *Client) sendToServerBatch(req service.Metric, count int) error {
 	if err != nil {
 		return err
 	}
-	defer func() { err = gz.Close() }()
+	defer func() { _ = gz.Close() }()
 	_, err = gz.Write(data)
-	err = gz.Close()
+	if err != nil {
+		return err
+	}
+	_ = gz.Close()
 
 	request := c.http.R().SetHeader("Content-Type", "application/json")
 	request.SetHeader("Content-Encoding", "gzip")
@@ -191,7 +194,7 @@ func (c *Client) sendToServerBatch(req service.Metric, count int) error {
 	if err != nil {
 		return err
 	}
-	defer func() { err = res.RawBody().Close() }()
+	defer func() { _ = res.RawBody().Close() }()
 
 	if res.StatusCode() != http.StatusOK {
 		return fmt.Errorf("expected status %d, got: %d", http.StatusOK, res.StatusCode())

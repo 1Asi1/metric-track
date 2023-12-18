@@ -6,14 +6,10 @@ import (
 	"github.com/1Asi1/metric-track.git/internal/logger"
 	"github.com/1Asi1/metric-track.git/internal/server/apiserver"
 	"github.com/1Asi1/metric-track.git/internal/server/config"
-	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("godotenv.Load error")
-	}
 
 	cfg, err := config.New(logger.NewLogger())
 	if err != nil {

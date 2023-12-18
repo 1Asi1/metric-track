@@ -105,7 +105,7 @@ func (m StoreMemory) Update(ctx context.Context, data map[string]Type) {
 }
 
 func (m StoreMemory) Ping() error {
-	return errors.New("db not included")
+	return nil
 }
 
 func (m StoreMemory) Updates(ctx context.Context, req []Metric) error {
@@ -137,7 +137,7 @@ func (f FileStore) Update(ctx context.Context, data map[string]Type) {
 }
 
 func (f FileStore) Ping() error {
-	return errors.New("db not included")
+	return nil
 }
 
 func (f FileStore) Updates(ctx context.Context, req []Metric) error {

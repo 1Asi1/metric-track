@@ -32,7 +32,7 @@ func (s *APIServer) Run() error {
 	l := s.log.With().Str("apiserver", "Run").Logger()
 
 	var store service.Store
-	if s.cfg.PostgresConnURL != config.NullPostgreURL {
+	if s.cfg.PostgresConnURL != "" {
 		psqlCfg := postgres.Config{
 			ConnURL:         s.cfg.PostgresConnURL,
 			Logger:          s.log,

@@ -145,7 +145,6 @@ func (h V1) GetOneMetric2(w http.ResponseWriter, r *http.Request) {
 
 	err = json.Unmarshal(body, &req)
 	if err != nil {
-		l.Error().Err(err).Msgf("json.Unmarshal, request value: %+v", r)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -172,7 +171,6 @@ func (h V1) GetOneMetric2(w http.ResponseWriter, r *http.Request) {
 
 	res, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
-		l.Error().Err(err).Msgf("json.Unmarshal, request value: %+v", r)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -213,7 +211,6 @@ func (h V1) UpdateMetric2(w http.ResponseWriter, r *http.Request) {
 
 	err = json.Unmarshal(body, &req)
 	if err != nil {
-		l.Error().Err(err).Msgf("json.Unmarshal, request value: %+v", r)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -234,7 +231,6 @@ func (h V1) UpdateMetric2(w http.ResponseWriter, r *http.Request) {
 
 	res, err := json.Marshal(result)
 	if err != nil {
-		l.Error().Err(err).Msgf("json.Unmarshal, request value: %+v", r)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -291,7 +287,6 @@ func (h V1) Updates(w http.ResponseWriter, r *http.Request) {
 
 	err = json.Unmarshal(body, &req)
 	if err != nil {
-		l.Error().Err(err).Msgf("json.Unmarshal, request value: %+v", r)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
