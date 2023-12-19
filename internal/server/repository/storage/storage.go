@@ -1,8 +1,7 @@
-package postgres
+package storage
 
 import (
 	"context"
-	"database/sql"
 	"embed"
 	"errors"
 	"fmt"
@@ -29,12 +28,10 @@ var (
 	count = 1
 )
 
-type Name string
-
 // Config структура с полями для подключения к базе данных.
 type Config struct {
 	// строка подключения с базой данных.
-	ConnURL string
+	ConnDSN string
 	// максимальное количество открытых соединений с базой данных.
 	MaxConn int
 	// максимальное количество времени, в течение которого соединение может быть использовано повторно.
@@ -48,16 +45,8 @@ type Config struct {
 //go:embed migrations/*.sql
 var migrationsDir embed.FS
 
-type storage interface {
-	SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
-	GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
-	NamedExecContext(ctx context.Context, query string, arg interface{}) (sql.Result, error)
-	Ping() error
-	Close() error
-}
-
 type Store struct {
-	storage
+	db  *sqlx.DB
 	log zerolog.Logger
 }
 
@@ -67,7 +56,7 @@ func New(cfg Config, log zerolog.Logger) (*Store, error) {
 	var err error
 	for ; ; count += countStep {
 		ticker := time.NewTicker(time.Duration(count) * time.Second)
-		db, err = sqlx.Connect("pgx", cfg.ConnURL)
+		db, err = sqlx.Connect("pgx", cfg.ConnDSN)
 		if err != nil {
 			if _, ok := (err).(pgx.PgError); !ok {
 				return &Store{}, fmt.Errorf("postgres connection error: %w", err)
@@ -96,11 +85,11 @@ func New(cfg Config, log zerolog.Logger) (*Store, error) {
 	db.SetConnMaxIdleTime(cfg.MaxConnIdleTime)
 	db.SetMaxOpenConns(cfg.MaxConn)
 
-	if err = runMigrations(cfg.ConnURL); err != nil {
+	if err = runMigrations(cfg.ConnDSN); err != nil {
 		return &Store{}, fmt.Errorf("runMigrations error: %w", err)
 	}
 
-	return &Store{storage: db, log: log}, nil
+	return &Store{db: db, log: log}, nil
 }
 
 func runMigrations(dsn string) error {
@@ -130,7 +119,7 @@ func (s *Store) Get(ctx context.Context) (map[string]memory.Type, error) {
 	FROM tbl_metrics
 `
 	var models []models.Metric
-	if err := s.SelectContext(ctx, &models, query); err != nil {
+	if err := s.db.SelectContext(ctx, &models, query); err != nil {
 		return nil, fmt.Errorf("Get %w;", err)
 	}
 
@@ -155,7 +144,7 @@ func (s *Store) GetOne(ctx context.Context, name string) (memory.Type, error) {
 	WHERE id = $1
 `
 	var model memory.Type
-	err := s.GetContext(ctx, &model, query, name)
+	err := s.db.GetContext(ctx, &model, query, name)
 	if err != nil {
 		return memory.Type{}, fmt.Errorf("GetOne: %w", err)
 	}
@@ -163,11 +152,9 @@ func (s *Store) GetOne(ctx context.Context, name string) (memory.Type, error) {
 	return model, nil
 }
 
-func (s *Store) Update(ctx context.Context, data map[string]memory.Type) {
-
+func (s *Store) Update(ctx context.Context, name string, data map[string]memory.Type) {
 	l := s.log.With().Str("postgres", "Update").Logger()
 
-	name := fmt.Sprintf("%v", ctx.Value(Name("name")))
 	model := models.Metric{
 		ID:      name,
 		Gauge:   data[name].Gauge,
@@ -182,7 +169,7 @@ func (s *Store) Update(ctx context.Context, data map[string]memory.Type) {
 		    gauge = EXCLUDED.gauge,
 		    counter = EXCLUDED.counter`
 
-	result, err := s.NamedExecContext(context.Background(), query, model)
+	result, err := s.db.NamedExecContext(ctx, query, model)
 	if err != nil {
 		l.Err(err).Msg("p.db.NamedExecContext")
 		return
@@ -216,7 +203,7 @@ func (s *Store) Updates(ctx context.Context, req []memory.Metric) error {
 		    gauge = EXCLUDED.gauge,
 		    counter = EXCLUDED.counter`
 
-		result, err := s.NamedExecContext(context.Background(), query, model)
+		result, err := s.db.NamedExecContext(ctx, query, model)
 		if err != nil {
 			return fmt.Errorf("p.DB.ExecContext: %w", err)
 		}
@@ -236,9 +223,9 @@ func (s *Store) Updates(ctx context.Context, req []memory.Metric) error {
 }
 
 func (s *Store) Ping() error {
-	return s.storage.Ping()
+	return s.db.Ping()
 }
 
 func (s *Store) Close() error {
-	return s.storage.Close()
+	return s.db.Close()
 }

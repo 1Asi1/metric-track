@@ -10,7 +10,6 @@ import (
 )
 
 func main() {
-
 	cfg, err := config.New(logger.NewLogger())
 	if err != nil {
 		log.Fatal("config.New")

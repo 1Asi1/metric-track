@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
-	"github.com/1Asi1/metric-track.git/internal/server/repository/postgres"
 	"github.com/rs/zerolog"
 )
 
@@ -38,7 +37,7 @@ type MetricsRequest struct {
 type Store interface {
 	Get(ctx context.Context) (map[string]memory.Type, error)
 	GetOne(ctx context.Context, name string) (memory.Type, error)
-	Update(ctx context.Context, data map[string]memory.Type)
+	Update(ctx context.Context, name string, data map[string]memory.Type)
 	Ping() error
 	Updates(ctx context.Context, req []memory.Metric) error
 }
@@ -121,9 +120,7 @@ func (s Service) UpdateMetric(ctx context.Context, req MetricsRequest) (Metrics,
 	}
 	data[req.ID] = value
 
-	nameID := postgres.Name("name")
-	ctx = context.WithValue(ctx, nameID, req.ID)
-	s.Store.Update(ctx, data)
+	s.Store.Update(ctx, req.ID, data)
 
 	return Metrics{
 		ID:    req.ID,

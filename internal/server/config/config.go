@@ -14,7 +14,7 @@ type Config struct {
 	StoreInterval    time.Duration
 	StorePath        string
 	StoreRestore     bool
-	PostgresConnURL  string
+	PostgresConnDSN  string
 }
 
 func New(log zerolog.Logger) (Config, error) {
@@ -25,7 +25,7 @@ func New(log zerolog.Logger) (Config, error) {
 	store := flag.Int("i", 300, "store interval")
 	path := flag.String("f", "./tmp/metrics-db.json", "path store file")
 	restore := flag.Bool("r", true, "store restore")
-	postgresql := flag.String("d", "", "url connecting to postgres")
+	postgresql := flag.String("d", "", "dsn connecting to postgres")
 	flag.Parse()
 
 	metricServerAddrEnv, ok := os.LookupEnv("ADDRESS")
@@ -61,9 +61,9 @@ func New(log zerolog.Logger) (Config, error) {
 
 	postgresqlAddrEnv, ok := os.LookupEnv("DATABASE_DSN")
 	if ok {
-		cfg.PostgresConnURL = postgresqlAddrEnv
+		cfg.PostgresConnDSN = postgresqlAddrEnv
 	} else {
-		cfg.PostgresConnURL = *postgresql
+		cfg.PostgresConnDSN = *postgresql
 	}
 
 	l.Info().Msgf("store restore: %v", *restore)

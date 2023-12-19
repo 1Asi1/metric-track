@@ -5,7 +5,7 @@ import (
 
 	"github.com/1Asi1/metric-track.git/internal/server/config"
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
-	"github.com/1Asi1/metric-track.git/internal/server/repository/postgres"
+	"github.com/1Asi1/metric-track.git/internal/server/repository/storage"
 	"github.com/1Asi1/metric-track.git/internal/server/service"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest/v1"
@@ -30,17 +30,16 @@ func New(cfg config.Config, log zerolog.Logger) APIServer {
 
 func (s *APIServer) Run() error {
 	l := s.log.With().Str("apiserver", "Run").Logger()
-
 	var store service.Store
-	if s.cfg.PostgresConnURL != "" {
-		psqlCfg := postgres.Config{
-			ConnURL:         s.cfg.PostgresConnURL,
+	if s.cfg.PostgresConnDSN != "" {
+		psqlCfg := storage.Config{
+			ConnDSN:         s.cfg.PostgresConnDSN,
 			Logger:          s.log,
 			MaxConn:         30,
 			MaxConnLifeTime: 10,
 			MaxConnIdleTime: 10,
 		}
-		postgresql, err := postgres.New(psqlCfg, s.log)
+		postgresql, err := storage.New(psqlCfg, s.log)
 		if err != nil {
 			l.Info().Msg("postgres.New error")
 		}
