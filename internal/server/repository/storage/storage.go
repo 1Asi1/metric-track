@@ -58,12 +58,12 @@ func New(cfg Config, log zerolog.Logger) (*Store, error) {
 		ticker := time.NewTicker(time.Duration(count) * time.Second)
 		db, err = sqlx.Connect("pgx", cfg.ConnDSN)
 		if err != nil {
-			if _, ok := (err).(pgx.PgError); !ok {
+			pgErr, ok := (err).(pgx.PgError)
+			if !ok {
 				return &Store{}, fmt.Errorf("postgres connection error: %w", err)
 			}
 
-			pgErrCode := (err).(pgx.PgError).Code
-			if pgErrCode == pgerrcode.InvalidAuthorizationSpecification {
+			if pgErr.Code == pgerrcode.InvalidAuthorizationSpecification {
 				l.Info().Msgf("try connection sec: %d", count)
 				<-ticker.C
 				l.Err(err).Msg("sqlx.Connect try agan...")
