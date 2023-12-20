@@ -5,6 +5,7 @@ import (
 
 	"github.com/1Asi1/metric-track.git/internal/server/config"
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
+	"github.com/1Asi1/metric-track.git/internal/server/repository/storage"
 	"github.com/1Asi1/metric-track.git/internal/server/service"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest/v1"
@@ -29,9 +30,31 @@ func New(cfg config.Config, log zerolog.Logger) APIServer {
 
 func (s *APIServer) Run() error {
 	l := s.log.With().Str("apiserver", "Run").Logger()
+	var store service.Store
+	if s.cfg.PostgresConnDSN != "" {
+		psqlCfg := storage.Config{
+			ConnDSN:         s.cfg.PostgresConnDSN,
+			Logger:          s.log,
+			MaxConn:         30,
+			MaxConnLifeTime: 10,
+			MaxConnIdleTime: 10,
+		}
+		postgresql, err := storage.New(psqlCfg, s.log)
+		if err != nil {
+			l.Info().Msg("postgres.New error")
+		}
+		defer func() {
+			if err = postgresql.Close(); err != nil {
+				l.Err(err).Msg("postgresql.Close")
+			}
+		}()
 
-	memoryStore := memory.New(s.log, s.cfg)
-	metricS := service.New(memoryStore, s.log)
+		store = postgresql
+	} else {
+		store = memory.New(s.log, s.cfg)
+	}
+
+	metricS := service.New(store, s.log)
 	route := rest.New(s.mux, metricS, s.log)
 
 	route.Mux.Use(midlog.Logger)

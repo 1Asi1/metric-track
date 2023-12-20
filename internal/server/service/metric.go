@@ -37,7 +37,9 @@ type MetricsRequest struct {
 type Store interface {
 	Get(ctx context.Context) (map[string]memory.Type, error)
 	GetOne(ctx context.Context, name string) (memory.Type, error)
-	Update(ctx context.Context, data map[string]memory.Type)
+	Update(ctx context.Context, name string, data map[string]memory.Type)
+	Ping() error
+	Updates(ctx context.Context, req []memory.Metric) error
 }
 
 type Service struct {
@@ -58,7 +60,7 @@ func (s Service) GetMetric(ctx context.Context) (string, error) {
 	data, err := s.Store.Get(ctx)
 	if err != nil {
 		l.Error().Err(err).Msg("s.Store.Get")
-		return "", err
+		return "", fmt.Errorf("%w; %w", memory.ErrNotFound, err)
 	}
 
 	l.Debug().Msgf("data value: %+v", data)
@@ -74,7 +76,7 @@ func (s Service) GetOneMetric(ctx context.Context, req MetricsRequest) (Metrics,
 	data, err := s.Store.GetOne(ctx, req.ID)
 	if err != nil {
 		l.Error().Err(err).Msgf("s.Store.GetOne metric id: %s", req.ID)
-		return Metrics{}, fmt.Errorf("metric name: %s, error:%w", req.ID, err)
+		return Metrics{}, fmt.Errorf("%w; %w", memory.ErrNotFound, err)
 	}
 
 	l.Debug().Msgf("data value: %+v", data)
@@ -118,7 +120,7 @@ func (s Service) UpdateMetric(ctx context.Context, req MetricsRequest) (Metrics,
 	}
 	data[req.ID] = value
 
-	s.Store.Update(ctx, data)
+	s.Store.Update(ctx, req.ID, data)
 
 	return Metrics{
 		ID:    req.ID,
@@ -126,6 +128,54 @@ func (s Service) UpdateMetric(ctx context.Context, req MetricsRequest) (Metrics,
 		Value: value.Gauge,
 		Delta: value.Counter,
 	}, nil
+}
+
+func (s Service) Ping(ctx context.Context) error {
+
+	if err := s.Store.Ping(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s Service) Updates(ctx context.Context, req []MetricsRequest) error {
+	data, err := s.Store.Get(context.Background())
+	if err != nil {
+		return err
+	}
+
+	for _, v := range req {
+		value := data[v.ID]
+		if v.MType == Gauge {
+			value.Gauge = v.Value
+		} else {
+			if value.Counter != nil {
+				*value.Counter += *v.Delta
+			} else {
+				value.Counter = v.Delta
+			}
+		}
+		data[v.ID] = value
+	}
+
+	model := make([]memory.Metric, len(data))
+	var count int
+	for k, v := range data {
+		model[count] = memory.Metric{
+			Name:  k,
+			Value: v.Gauge,
+			Delta: v.Counter,
+		}
+		count++
+	}
+
+	err = s.Store.Updates(ctx, model)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s Service) parseToHTML(data map[string]memory.Type) string {

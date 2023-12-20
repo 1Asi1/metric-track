@@ -27,4 +27,3 @@ golangci-lint/
 # Other
 .env
 .DS_Store
-.golangci.yml

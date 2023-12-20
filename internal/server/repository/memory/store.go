@@ -22,7 +22,9 @@ var (
 type Store interface {
 	Get(ctx context.Context) (map[string]Type, error)
 	GetOne(ctx context.Context, name string) (Type, error)
-	Update(ctx context.Context, data map[string]Type)
+	Update(ctx context.Context, name string, data map[string]Type)
+	Ping() error
+	Updates(ctx context.Context, req []Metric) error
 }
 
 type StoreMemory struct {
@@ -96,10 +98,18 @@ func (m StoreMemory) GetOne(ctx context.Context, name string) (Type, error) {
 	return m.metric[name], nil
 }
 
-func (m StoreMemory) Update(ctx context.Context, data map[string]Type) {
+func (m StoreMemory) Update(ctx context.Context, name string, data map[string]Type) {
 	for k, v := range data {
 		m.metric[k] = v
 	}
+}
+
+func (m StoreMemory) Ping() error {
+	return nil
+}
+
+func (m StoreMemory) Updates(ctx context.Context, req []Metric) error {
+	return nil
 }
 
 func (f FileStore) Get(ctx context.Context) (map[string]Type, error) {
@@ -114,7 +124,7 @@ func (f FileStore) GetOne(ctx context.Context, name string) (Type, error) {
 	return f.memoryStore.metric[name], nil
 }
 
-func (f FileStore) Update(ctx context.Context, data map[string]Type) {
+func (f FileStore) Update(ctx context.Context, name string, data map[string]Type) {
 	l := f.memoryStore.log.With().Str("memory", "Update").Logger()
 	for k, v := range data {
 		f.memoryStore.metric[k] = v
@@ -124,6 +134,14 @@ func (f FileStore) Update(ctx context.Context, data map[string]Type) {
 	if err != nil {
 		l.Err(err).Msg("m.DataRetention")
 	}
+}
+
+func (f FileStore) Ping() error {
+	return nil
+}
+
+func (f FileStore) Updates(ctx context.Context, req []Metric) error {
+	return nil
 }
 
 func (f FileStore) dataRetentionPeriodic() {
