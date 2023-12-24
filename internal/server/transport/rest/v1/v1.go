@@ -8,14 +8,16 @@ import (
 )
 
 type V1 struct {
-	handler rest.Handler
-	service service.Service
+	handler   rest.Handler
+	service   service.Service
+	secretKey string
 }
 
-func New(h rest.Handler) {
+func New(h rest.Handler, secretKey string) {
 	v1 := V1{
-		handler: h,
-		service: h.Service,
+		handler:   h,
+		service:   h.Service,
+		secretKey: secretKey,
 	}
 
 	v1.handler.Mux.Use(middleware.GzipMiddleware)
@@ -27,9 +29,9 @@ func (h V1) registerV1Route() {
 		r.Get("/", h.GetMetric)
 		r.Get("/ping", h.Ping)
 		r.Get("/value/{metric}/{name}", h.GetOneMetric)
-		r.Post("/update/{metric}/{name}/{value}", h.UpdateMetric)
+		r.Post("/update/{metric}/{name}/{value}", middleware.HMACMiddleware(h.UpdateMetric, h.secretKey))
 		r.Post("/value/", h.GetOneMetric2)
-		r.Post("/update/", h.UpdateMetric2)
-		r.Post("/updates/", h.Updates)
+		r.Post("/update/", middleware.HMACMiddleware(h.UpdateMetric2, h.secretKey))
+		r.Post("/updates/", middleware.HMACMiddleware(h.Updates, h.secretKey))
 	})
 }

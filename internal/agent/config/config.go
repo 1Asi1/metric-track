@@ -19,6 +19,7 @@ type Config struct {
 	MetricServerAddr string
 	PollInterval     time.Duration
 	ReportInterval   time.Duration
+	SecretKey        string
 }
 
 func New(log zerolog.Logger) (Config, error) {
@@ -29,6 +30,7 @@ func New(log zerolog.Logger) (Config, error) {
 	add := flag.String("a", "localhost:8080", "address and port to run agent")
 	rep := flag.Int("r", intervalReport, "report agent interval")
 	pull := flag.Int("p", intervalPull, "pull agent interval")
+	key := flag.String("k", "", "secret key for agent")
 	flag.Parse()
 
 	metricServerAddrEnv, ok := os.LookupEnv("ADDRESS")
@@ -64,6 +66,13 @@ func New(log zerolog.Logger) (Config, error) {
 		cfg.ReportInterval = time.Duration(rI) * time.Second
 	} else {
 		cfg.ReportInterval = time.Duration(*rep) * time.Second
+	}
+
+	secretKeyEnv, ok := os.LookupEnv("KEY")
+	if ok {
+		cfg.SecretKey = secretKeyEnv
+	} else {
+		cfg.SecretKey = *key
 	}
 
 	return cfg, nil
