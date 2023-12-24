@@ -15,6 +15,7 @@ type Config struct {
 	StorePath        string
 	StoreRestore     bool
 	PostgresConnDSN  string
+	SecretKey        string
 }
 
 func New(log zerolog.Logger) (Config, error) {
@@ -26,6 +27,7 @@ func New(log zerolog.Logger) (Config, error) {
 	path := flag.String("f", "./tmp/metrics-db.json", "path store file")
 	restore := flag.Bool("r", true, "store restore")
 	postgresql := flag.String("d", "", "dsn connecting to postgres")
+	key := flag.String("k", "", "secret key for server")
 	flag.Parse()
 
 	metricServerAddrEnv, ok := os.LookupEnv("ADDRESS")
@@ -64,6 +66,13 @@ func New(log zerolog.Logger) (Config, error) {
 		cfg.PostgresConnDSN = postgresqlAddrEnv
 	} else {
 		cfg.PostgresConnDSN = *postgresql
+	}
+
+	secretKeyEnv, ok := os.LookupEnv("KEY")
+	if ok {
+		cfg.SecretKey = secretKeyEnv
+	} else {
+		cfg.SecretKey = *key
 	}
 
 	l.Info().Msgf("store restore: %v", *restore)
