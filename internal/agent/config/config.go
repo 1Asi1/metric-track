@@ -13,6 +13,7 @@ import (
 const (
 	intervalReport = 10
 	intervalPull   = 2
+	workerPool     = 10
 )
 
 type Config struct {
@@ -20,6 +21,7 @@ type Config struct {
 	PollInterval     time.Duration
 	ReportInterval   time.Duration
 	SecretKey        string
+	WorkerPool       int
 }
 
 func New(log zerolog.Logger) (Config, error) {
@@ -31,6 +33,7 @@ func New(log zerolog.Logger) (Config, error) {
 	rep := flag.Int("r", intervalReport, "report agent interval")
 	pull := flag.Int("p", intervalPull, "pull agent interval")
 	key := flag.String("k", "", "secret key for agent")
+	workerP := flag.Int("l", workerPool, "pull worker")
 	flag.Parse()
 
 	metricServerAddrEnv, ok := os.LookupEnv("ADDRESS")
@@ -73,6 +76,19 @@ func New(log zerolog.Logger) (Config, error) {
 		cfg.SecretKey = secretKeyEnv
 	} else {
 		cfg.SecretKey = *key
+	}
+
+	workerPoolEnv, ok := os.LookupEnv("RATE_LIMIT")
+	if ok {
+		wP, err := strconv.Atoi(workerPoolEnv)
+		if err != nil {
+			l.Error().Err(err).Msgf("strconv.Atoi, poll interval value: %s", pollIntervalEnv)
+			return Config{}, fmt.Errorf("strconv.Atoi: %w", err)
+		}
+
+		cfg.WorkerPool = wP
+	} else {
+		cfg.WorkerPool = *workerP
 	}
 
 	return cfg, nil

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/1Asi1/metric-track.git/internal/agent/config"
@@ -57,6 +58,37 @@ func (c *Client) SendMetricPeriodic() {
 			res.Type["RandomValue"] = rand.ExpFloat64()
 			res.Type["PollCount"] = count
 		case <-tickerRep.C:
+			type data map[string]any
+			job := make(chan data, len(res.Type))
+			var wg sync.WaitGroup
+
+			for i := 0; i < c.cfg.WorkerPool; i++ {
+				wg.Add(1)
+				go func(req chan data, wgWrk *sync.WaitGroup) {
+					for r := range req {
+						for k, v := range r {
+							if err := c.sendToServerGauge(k, v); err != nil {
+								l.Error().Err(err).Msgf("c.sendToServerGauge, type: %s, value: %v", k, v)
+							}
+
+							if err := c.sendToServerCounter(k, res.Type["PollCount"]); err != nil {
+								l.Error().Err(err).Msgf("c.sendToServerGauge, type: %s, value: %v", k, v)
+							}
+						}
+					}
+					wgWrk.Done()
+				}(job, &wg)
+			}
+
+			go func() {
+				defer close(job)
+				for k, v := range res.Type {
+					req := make(data, 1)
+					req[k] = v
+					job <- req
+				}
+			}()
+			wg.Wait()
 
 			for k, v := range res.Type {
 				if err := c.sendToServerGauge(k, v); err != nil {
