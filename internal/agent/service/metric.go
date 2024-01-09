@@ -70,18 +70,17 @@ func (s Service) GetMetric() Metric {
 		"TotalAlloc":      m.TotalAlloc,
 		"RandomValue":     Gauge(0),
 		"PollCount":       Counter(0),
-		"TotalMemory":     <-memory,
-		"FreeMemory":      <-memory,
-		"CPUutilization1": <-cpuMetric,
+		"TotalMemory":     memory,
+		"FreeMemory":      memory,
+		"CPUutilization1": cpuMetric,
 	}
-	wg.Wait()
 
 	l.Debug().Msgf("data value: %+v", res)
 
 	return Metric{Type: res}
 }
 
-func getMemory(wg *sync.WaitGroup) <-chan uint64 {
+func getMemory(wg *sync.WaitGroup) uint64 {
 	ch := make(chan uint64, 2)
 
 	go func() {
@@ -98,10 +97,10 @@ func getMemory(wg *sync.WaitGroup) <-chan uint64 {
 	}()
 
 	wg.Done()
-	return ch
+	return <-ch
 }
 
-func getCPU(wg *sync.WaitGroup) <-chan int {
+func getCPU(wg *sync.WaitGroup) int {
 	ch := make(chan int)
 
 	go func() {
@@ -116,5 +115,5 @@ func getCPU(wg *sync.WaitGroup) <-chan int {
 	}()
 
 	wg.Done()
-	return ch
+	return <-ch
 }

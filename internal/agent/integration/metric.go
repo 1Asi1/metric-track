@@ -62,9 +62,10 @@ func (c *Client) SendMetricPeriodic() {
 			job := make(chan data, len(res.Type))
 			var wg sync.WaitGroup
 
-			for i := 0; i < c.cfg.WorkerPool; i++ {
+			for i := 0; i < c.cfg.RateLimit; i++ {
 				wg.Add(1)
 				go func(req chan data, wgWrk *sync.WaitGroup) {
+					defer wgWrk.Done()
 					for r := range req {
 						for k, v := range r {
 							if err := c.sendToServerGauge(k, v); err != nil {
@@ -76,7 +77,6 @@ func (c *Client) SendMetricPeriodic() {
 							}
 						}
 					}
-					wgWrk.Done()
 				}(job, &wg)
 			}
 
