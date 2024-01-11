@@ -2,7 +2,6 @@ package service
 
 import (
 	"runtime"
-	"sync"
 
 	"github.com/1Asi1/metric-track.git/internal/agent/config"
 	"github.com/rs/zerolog"
@@ -32,10 +31,14 @@ func New(cfg config.Config, log zerolog.Logger) Service {
 func (s Service) GetMetric() Metric {
 	l := s.log.With().Str("service", "GetMetric").Logger()
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-	memory := getMemory(&wg)
-	cpuMetric := getCPU(&wg)
+	memory, err := mem.VirtualMemory()
+	if err != nil {
+		l.Err(err).Msg("mem.VirtualMemory")
+	}
+	cpuMetric, err := cpu.Counts(true)
+	if err != nil {
+		l.Err(err).Msg("cpu.Counts")
+	}
 
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
@@ -70,50 +73,12 @@ func (s Service) GetMetric() Metric {
 		"TotalAlloc":      m.TotalAlloc,
 		"RandomValue":     Gauge(0),
 		"PollCount":       Counter(0),
-		"TotalMemory":     memory,
-		"FreeMemory":      memory,
+		"TotalMemory":     memory.Total,
+		"FreeMemory":      memory.Free,
 		"CPUutilization1": cpuMetric,
 	}
 
 	l.Debug().Msgf("data value: %+v", res)
 
 	return Metric{Type: res}
-}
-
-func getMemory(wg *sync.WaitGroup) uint64 {
-	ch := make(chan uint64, 2)
-
-	go func() {
-		defer close(ch)
-		memory, err := mem.VirtualMemory()
-		if err != nil {
-			ch <- 0
-			ch <- 0
-			return
-		}
-
-		ch <- memory.Total
-		ch <- memory.Free
-	}()
-
-	wg.Done()
-	return <-ch
-}
-
-func getCPU(wg *sync.WaitGroup) int {
-	ch := make(chan int)
-
-	go func() {
-		defer close(ch)
-		cpuMetric, err := cpu.Counts(true)
-		if err != nil {
-			ch <- 0
-			return
-		}
-
-		ch <- cpuMetric
-	}()
-
-	wg.Done()
-	return <-ch
 }

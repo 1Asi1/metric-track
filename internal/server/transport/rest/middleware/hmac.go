@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 )
@@ -31,8 +32,8 @@ func HMACMiddleware(next http.HandlerFunc, secretKey string) http.HandlerFunc {
 			return
 		}
 
-		res := h1.Sum(nil)
-		if !hmac.Equal([]byte(h), res) {
+		res := hex.EncodeToString(h1.Sum(nil))
+		if !hmac.Equal([]byte(h), []byte(res)) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}

@@ -62,7 +62,6 @@ func New(log zerolog.Logger) (Config, error) {
 	if ok {
 		rI, err := strconv.Atoi(reportIntervalEnv)
 		if err != nil {
-			l.Error().Err(err).Msgf("strconv.Atoi, report interval value: %s", reportIntervalEnv)
 			return Config{}, fmt.Errorf("strconv.Atoi: %w", err)
 		}
 
