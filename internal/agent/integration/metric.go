@@ -57,17 +57,12 @@ func (c *Client) SendMetricPeriodic() {
 	var wg sync.WaitGroup
 	for i := 0; i < c.cfg.RateLimit; i++ {
 		wg.Add(1)
-		go func(req chan data, wgWrk *sync.WaitGroup) {
+		go func(job chan data, wgWrk *sync.WaitGroup) {
 			defer wgWrk.Done()
-			for r := range req {
-				for k, v := range r {
-					if err := c.sendToServerGauge(k, v); err != nil {
-						l.Error().Err(err).Msgf("c.sendToServerGauge, type: %s, value: %v", k, v)
-					}
-
-					if err := c.sendToServerCounter(k, res.Type["PollCount"]); err != nil {
-						l.Error().Err(err).Msgf("c.sendToServerGauge, type: %s, value: %v", k, v)
-					}
+			for j := range job {
+				if err := c.sendToServerBatch(j, count); err != nil {
+					l.Error().Err(err).Msgf("c.sendToServerBatch")
+					continue
 				}
 			}
 		}(job, &wg)
@@ -85,116 +80,35 @@ func (c *Client) SendMetricPeriodic() {
 		case <-tickerRep.C:
 
 			go func() {
-				defer close(job)
 				for k, v := range res.Type {
 					req := make(data, 1)
 					req[k] = v
 					job <- req
 				}
 			}()
-			wg.Wait()
-
-			if err := c.sendToServerBatch(res, count); err != nil {
-				l.Error().Err(err).Msgf("c.sendToServerBatch")
-			}
 
 			count = 0
 		}
 	}
 }
 
-func (c *Client) sendToServerGauge(name string, value any) error {
-	req := MetricsRequest{
-		ID:    name,
-		MType: "gauge",
-		Value: value,
-		Delta: 0,
-	}
-
-	if err := c.send(req); err != nil {
-		return fmt.Errorf("sendToServerGauge: %v", err)
-	}
-
-	return nil
-}
-
-func (c *Client) sendToServerCounter(name string, value any) error {
-	req := MetricsRequest{
-		ID:    name,
-		MType: "counter",
-		Delta: value,
-		Value: 0,
-	}
-
-	if err := c.send(req); err != nil {
-		return fmt.Errorf("sendToServerCounter: %v", err)
-	}
-
-	return nil
-}
-
-func (c *Client) send(req MetricsRequest) error {
-	url := fmt.Sprintf("http://%s/update/", c.cfg.MetricServerAddr)
-
-	data, err := json.Marshal(req)
-	if err != nil {
-		return err
-	}
-
-	var buf bytes.Buffer
-	gz, err := gzip.NewWriterLevel(&buf, gzip.BestSpeed)
-	if err != nil {
-		return err
-	}
-	defer func() { err = gz.Close() }()
-	_, err = gz.Write(data)
-	err = gz.Close()
-
-	request := c.http.R().SetHeader("Content-Type", "application/json")
-	request.SetHeader("Content-Encoding", "gzip")
-	request.SetBody(&buf)
-	request.Method = resty.MethodPost
-	request.URL = url
-	defer c.http.SetCloseConnection(true)
-
-	h1 := hmac.New(sha256.New, []byte(c.cfg.SecretKey))
-	_, err = h1.Write(buf.Bytes())
-	if err != nil {
-		return err
-	}
-	res := hex.EncodeToString(h1.Sum(nil))
-	request.SetHeader("HashSHA256", res)
-
-	resp, err := request.Send()
-	if err != nil {
-		return err
-	}
-	defer func() { err = resp.RawBody().Close() }()
-
-	if resp.StatusCode() != http.StatusOK {
-		return fmt.Errorf("expected status %d, got: %d", http.StatusOK, resp.StatusCode())
-	}
-
-	return nil
-}
-
-func (c *Client) sendToServerBatch(req service.Metric, count int) error {
-	metrics := make([]MetricsRequest, 0)
-	for k, v := range req.Type {
+func (c *Client) sendToServerBatch(req map[string]any, count int) error {
+	metrics := make([]MetricsRequest, 2)
+	for k, v := range req {
 		if k != "PollCount" {
-			metrics = append(metrics, MetricsRequest{
+			metrics[0] = MetricsRequest{
 				ID:    k,
 				MType: "gauge",
 				Value: v,
 				Delta: nil,
-			})
+			}
 
-			metrics = append(metrics, MetricsRequest{
+			metrics[1] = MetricsRequest{
 				ID:    k,
 				MType: "counter",
 				Delta: count,
 				Value: nil,
-			})
+			}
 		}
 	}
 
@@ -224,14 +138,22 @@ func (c *Client) sendToServerBatch(req service.Metric, count int) error {
 	request.URL = url
 	defer c.http.SetCloseConnection(true)
 
-	res, err := request.Send()
+	h1 := hmac.New(sha256.New, []byte(c.cfg.SecretKey))
+	_, err = h1.Write(buf.Bytes())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = res.RawBody().Close() }()
+	res := hex.EncodeToString(h1.Sum(nil))
+	request.SetHeader("HashSHA256", res)
 
-	if res.StatusCode() != http.StatusOK {
-		return fmt.Errorf("expected status %d, got: %d", http.StatusOK, res.StatusCode())
+	resp, err := request.Send()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.RawBody().Close() }()
+
+	if resp.StatusCode() != http.StatusOK {
+		return fmt.Errorf("expected status %d, got: %d", http.StatusOK, resp.StatusCode())
 	}
 
 	return nil
