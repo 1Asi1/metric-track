@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/1Asi1/metric-track.git/internal/agent/config"
@@ -49,44 +48,39 @@ func (c *Client) SendMetricPeriodic() {
 
 	var count int
 	var res service.Metric
+	res = c.service.GetMetric()
+
 	tickerPool := time.NewTicker(c.cfg.PollInterval)
 	tickerRep := time.NewTicker(c.cfg.ReportInterval)
 
 	type data map[string]any
 	job := make(chan data, len(res.Type))
-	var wg sync.WaitGroup
+	counter := make(chan int, len(res.Type))
 	for i := 0; i < c.cfg.RateLimit; i++ {
-		wg.Add(1)
-		go func(job chan data, wgWrk *sync.WaitGroup) {
-			defer wgWrk.Done()
+		go func(job chan data, counter chan int) {
 			for j := range job {
-				if err := c.sendToServerBatch(j, count); err != nil {
+				ct := <-counter
+				if err := c.sendToServerBatch(j, ct); err != nil {
 					l.Error().Err(err).Msgf("c.sendToServerBatch")
-					continue
+					return
 				}
 			}
-		}(job, &wg)
+		}(job, counter)
 	}
 
 	for {
 		select {
 		case <-tickerPool.C:
 			res = c.service.GetMetric()
-
 			count++
-
 			res.Type["RandomValue"] = rand.ExpFloat64()
-			res.Type["PollCount"] = count
 		case <-tickerRep.C:
-
-			go func() {
-				for k, v := range res.Type {
-					req := make(data, 1)
-					req[k] = v
-					job <- req
-				}
-			}()
-
+			for k, v := range res.Type {
+				req := make(data, 1)
+				req[k] = v
+				job <- req
+				counter <- count
+			}
 			count = 0
 		}
 	}
@@ -95,20 +89,18 @@ func (c *Client) SendMetricPeriodic() {
 func (c *Client) sendToServerBatch(req map[string]any, count int) error {
 	metrics := make([]MetricsRequest, 2)
 	for k, v := range req {
-		if k != "PollCount" {
-			metrics[0] = MetricsRequest{
-				ID:    k,
-				MType: "gauge",
-				Value: v,
-				Delta: nil,
-			}
+		metrics[0] = MetricsRequest{
+			ID:    k,
+			MType: "gauge",
+			Value: v,
+			Delta: nil,
+		}
 
-			metrics[1] = MetricsRequest{
-				ID:    k,
-				MType: "counter",
-				Delta: count,
-				Value: nil,
-			}
+		metrics[1] = MetricsRequest{
+			ID:    k,
+			MType: "counter",
+			Delta: count,
+			Value: nil,
 		}
 	}
 
