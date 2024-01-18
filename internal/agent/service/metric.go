@@ -5,6 +5,8 @@ import (
 
 	"github.com/1Asi1/metric-track.git/internal/agent/config"
 	"github.com/rs/zerolog"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/mem"
 )
 
 type Gauge float64
@@ -29,39 +31,51 @@ func New(cfg config.Config, log zerolog.Logger) Service {
 func (s Service) GetMetric() Metric {
 	l := s.log.With().Str("service", "GetMetric").Logger()
 
+	memory, err := mem.VirtualMemory()
+	if err != nil {
+		l.Err(err).Msg("mem.VirtualMemory")
+	}
+	cpuMetric, err := cpu.Counts(true)
+	if err != nil {
+		l.Err(err).Msg("cpu.Counts")
+	}
+
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
 	var res = map[string]any{
-		"Alloc":         m.Alloc,
-		"BuckHashSys":   m.BuckHashSys,
-		"Frees":         m.Frees,
-		"GCCPUFraction": m.GCCPUFraction,
-		"GCSys":         m.GCSys,
-		"HeapAlloc":     m.HeapAlloc,
-		"HeapIdle":      m.HeapIdle,
-		"HeapInuse":     m.HeapInuse,
-		"HeapObjects":   m.HeapObjects,
-		"HeapReleased":  m.HeapReleased,
-		"HeapSys":       m.HeapSys,
-		"LastGC":        m.LastGC,
-		"Lookups":       m.Lookups,
-		"MCacheInuse":   m.MCacheInuse,
-		"MCacheSys":     m.MCacheSys,
-		"MSpanInuse":    m.MSpanInuse,
-		"MSpanSys":      m.MSpanSys,
-		"Mallocs":       m.Mallocs,
-		"NextGC":        m.NextGC,
-		"NumForcedGC":   m.NumForcedGC,
-		"NumGC":         m.NumGC,
-		"OtherSys":      m.OtherSys,
-		"PauseTotalNs":  m.PauseTotalNs,
-		"StackInuse":    m.StackInuse,
-		"StackSys":      m.StackSys,
-		"Sys":           m.Sys,
-		"TotalAlloc":    m.TotalAlloc,
-		"RandomValue":   Gauge(0),
-		"PollCount":     Counter(0),
+		"Alloc":           m.Alloc,
+		"BuckHashSys":     m.BuckHashSys,
+		"Frees":           m.Frees,
+		"GCCPUFraction":   m.GCCPUFraction,
+		"GCSys":           m.GCSys,
+		"HeapAlloc":       m.HeapAlloc,
+		"HeapIdle":        m.HeapIdle,
+		"HeapInuse":       m.HeapInuse,
+		"HeapObjects":     m.HeapObjects,
+		"HeapReleased":    m.HeapReleased,
+		"HeapSys":         m.HeapSys,
+		"LastGC":          m.LastGC,
+		"Lookups":         m.Lookups,
+		"MCacheInuse":     m.MCacheInuse,
+		"MCacheSys":       m.MCacheSys,
+		"MSpanInuse":      m.MSpanInuse,
+		"MSpanSys":        m.MSpanSys,
+		"Mallocs":         m.Mallocs,
+		"NextGC":          m.NextGC,
+		"NumForcedGC":     m.NumForcedGC,
+		"NumGC":           m.NumGC,
+		"OtherSys":        m.OtherSys,
+		"PauseTotalNs":    m.PauseTotalNs,
+		"StackInuse":      m.StackInuse,
+		"StackSys":        m.StackSys,
+		"Sys":             m.Sys,
+		"TotalAlloc":      m.TotalAlloc,
+		"RandomValue":     Gauge(0),
+		"PollCount":       Counter(0),
+		"TotalMemory":     memory.Total,
+		"FreeMemory":      memory.Free,
+		"CPUutilization1": cpuMetric,
 	}
 
 	l.Debug().Msgf("data value: %+v", res)

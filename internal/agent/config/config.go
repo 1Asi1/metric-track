@@ -13,12 +13,15 @@ import (
 const (
 	intervalReport = 10
 	intervalPull   = 2
+	rateLimit      = 10
 )
 
 type Config struct {
 	MetricServerAddr string
 	PollInterval     time.Duration
 	ReportInterval   time.Duration
+	SecretKey        string
+	RateLimit        int
 }
 
 func New(log zerolog.Logger) (Config, error) {
@@ -29,6 +32,8 @@ func New(log zerolog.Logger) (Config, error) {
 	add := flag.String("a", "localhost:8080", "address and port to run agent")
 	rep := flag.Int("r", intervalReport, "report agent interval")
 	pull := flag.Int("p", intervalPull, "pull agent interval")
+	key := flag.String("k", "", "secret key for agent")
+	rLimit := flag.Int("l", rateLimit, "pull worker")
 	flag.Parse()
 
 	metricServerAddrEnv, ok := os.LookupEnv("ADDRESS")
@@ -57,13 +62,31 @@ func New(log zerolog.Logger) (Config, error) {
 	if ok {
 		rI, err := strconv.Atoi(reportIntervalEnv)
 		if err != nil {
-			l.Error().Err(err).Msgf("strconv.Atoi, report interval value: %s", reportIntervalEnv)
 			return Config{}, fmt.Errorf("strconv.Atoi: %w", err)
 		}
 
 		cfg.ReportInterval = time.Duration(rI) * time.Second
 	} else {
 		cfg.ReportInterval = time.Duration(*rep) * time.Second
+	}
+
+	secretKeyEnv, ok := os.LookupEnv("KEY")
+	if ok {
+		cfg.SecretKey = secretKeyEnv
+	} else {
+		cfg.SecretKey = *key
+	}
+
+	rateLimitEnv, ok := os.LookupEnv("RATE_LIMIT")
+	if ok {
+		rL, err := strconv.Atoi(rateLimitEnv)
+		if err != nil {
+			return Config{}, fmt.Errorf("strconv.Atoi: %w", err)
+		}
+
+		cfg.RateLimit = rL
+	} else {
+		cfg.RateLimit = *rLimit
 	}
 
 	return cfg, nil
