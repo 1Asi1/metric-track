@@ -130,3 +130,193 @@ func TestV1_UpdateMetric2(t *testing.T) {
 		})
 	}
 }
+
+func TestV1_GetMetric(t *testing.T) {
+	l := newLogger()
+	st := memory.New(l, config.Config{})
+	se := service.New(st, l)
+
+	router := chi.NewRouter()
+	h := rest.Handler{
+		Mux:     router,
+		Service: se}
+	New(h, "")
+
+	s := httptest.NewServer(router)
+	defer s.Close()
+
+	tests := []struct {
+		name string
+	}{
+		{
+			name: "positive",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			url := fmt.Sprintf("%s/", s.URL)
+
+			res, err := resty.New().R().SetHeader("Content-Type", "application/json; charset=utf-8").Get(url)
+
+			require.NoError(t, err)
+
+			assert.Equal(t, "text/html; charset=utf-8", res.Header().Get("Content-Type"))
+
+			assert.Equal(t, http.StatusOK, res.StatusCode())
+
+			err = res.RawBody().Close()
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestV1_GetOneMetric(t *testing.T) {
+	l := newLogger()
+	st := memory.New(l, config.Config{})
+	se := service.New(st, l)
+
+	router := chi.NewRouter()
+	h := rest.Handler{
+		Mux:     router,
+		Service: se}
+	New(h, "")
+
+	s := httptest.NewServer(router)
+	defer s.Close()
+
+	tests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "positive",
+			want: "name metric not found; problem with m.metric[test]: name metric not found\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			url := fmt.Sprintf("%s/value/gauge/test", s.URL)
+
+			res, _ := resty.New().R().SetHeader("Content-Type", "application/json; charset=utf-8").Get(url)
+
+			assert.Equal(t, "text/plain; charset=utf-8", res.Header().Get("Content-Type"))
+
+			act := string(res.Body())
+
+			assert.Equal(t, tt.want, act, "resty.New().R()")
+		})
+	}
+}
+
+func TestV1_GetOneMetric2(t *testing.T) {
+	l := newLogger()
+	st := memory.New(l, config.Config{})
+	se := service.New(st, l)
+
+	router := chi.NewRouter()
+	h := rest.Handler{
+		Mux:     router,
+		Service: se}
+	New(h, "")
+
+	s := httptest.NewServer(router)
+	defer s.Close()
+
+	tests := []struct {
+		name string
+		arg  service.MetricsRequest
+	}{
+		{
+			name: "positive",
+			arg: service.MetricsRequest{
+				ID:    "test",
+				MType: "gauge",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			url := fmt.Sprintf("%s/value/", s.URL)
+
+			res, _ := resty.New().R().SetHeader("Content-Type", "application/json; charset=utf-8").SetBody(tt.arg).Post(url)
+
+			assert.Equal(t, "text/plain; charset=utf-8", res.Header().Get("Content-Type"))
+
+			assert.Equal(t, http.StatusNotFound, res.StatusCode())
+
+			err := res.RawBody().Close()
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestV1_Ping(t *testing.T) {
+	l := newLogger()
+	st := memory.New(l, config.Config{})
+	se := service.New(st, l)
+
+	router := chi.NewRouter()
+	h := rest.Handler{
+		Mux:     router,
+		Service: se}
+	New(h, "")
+
+	s := httptest.NewServer(router)
+	defer s.Close()
+
+	tests := []struct {
+		name string
+	}{
+		{
+			name: "positive",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			url := fmt.Sprintf("%s/ping", s.URL)
+
+			res, _ := resty.New().R().SetHeader("Content-Type", "application/json; charset=utf-8").Get(url)
+
+			assert.Equal(t, http.StatusOK, res.StatusCode())
+		})
+	}
+}
+
+func TestV1_Updates(t *testing.T) {
+	l := newLogger()
+	st := memory.New(l, config.Config{})
+	se := service.New(st, l)
+
+	router := chi.NewRouter()
+	h := rest.Handler{
+		Mux:     router,
+		Service: se}
+	New(h, "")
+
+	s := httptest.NewServer(router)
+	defer s.Close()
+
+	tests := []struct {
+		name string
+		req  []service.MetricsRequest
+	}{
+		{name: "positive",
+			req: []service.MetricsRequest{
+				{
+					ID:    "",
+					MType: "counter",
+					Delta: nil,
+					Value: nil,
+				},
+			}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			url := fmt.Sprintf("%s/updates/", s.URL)
+
+			res, _ := resty.New().R().SetHeader("Content-Type", "application/json; charset=utf-8").SetBody(tt.req).Post(url)
+
+			assert.Equal(t, http.StatusOK, res.StatusCode())
+		})
+	}
+}

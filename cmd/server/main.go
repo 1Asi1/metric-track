@@ -31,7 +31,7 @@ func main() {
 	}()
 
 	go func() {
-		time.Sleep(10 * time.Second)
+		time.Sleep(20 * time.Second)
 		fmem, err := os.Create("./profiles/mem.pprof")
 		if err != nil {
 			panic(err)
