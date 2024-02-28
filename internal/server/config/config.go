@@ -11,6 +11,7 @@ import (
 
 type Config struct {
 	MetricServerAddr string
+	MetricPPROFAddr  string
 	StoreInterval    time.Duration
 	StorePath        string
 	StoreRestore     bool
@@ -23,6 +24,7 @@ func New(log zerolog.Logger) (Config, error) {
 
 	var cfg Config
 	add := flag.String("a", "localhost:8080", "address and port to run agent")
+	addPPROF := flag.String("p", "localhost:8081", "address and port to run pprof")
 	store := flag.Int("i", 300, "store interval")
 	path := flag.String("f", "./tmp/metrics-db.json", "path store file")
 	restore := flag.Bool("r", true, "store restore")
@@ -37,6 +39,15 @@ func New(log zerolog.Logger) (Config, error) {
 	} else {
 		l.Info().Msgf("server address value: %s", *add)
 		cfg.MetricServerAddr = *add
+	}
+
+	metricPPROFAddrEnv, ok := os.LookupEnv("ADDRESS_PPROF")
+	if ok {
+		l.Info().Msgf("pprof address value: %s", metricServerAddrEnv)
+		cfg.MetricPPROFAddr = metricPPROFAddrEnv
+	} else {
+		l.Info().Msgf("pprof address value: %s", *add)
+		cfg.MetricPPROFAddr = *addPPROF
 	}
 
 	storeIntervalEnv, ok := os.LookupEnv("STORE_INTERVAL")
