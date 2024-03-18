@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// GetMetric получить все митрики.
 func (h V1) GetMetric(w http.ResponseWriter, r *http.Request) {
 	res, err := h.service.GetMetric(r.Context())
 	if err != nil {
@@ -30,6 +31,7 @@ func (h V1) GetMetric(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetOneMetric получить одну митрику.
 func (h V1) GetOneMetric(w http.ResponseWriter, r *http.Request) {
 	m := chi.URLParam(r, "metric")
 	n := chi.URLParam(r, "name")
@@ -75,6 +77,7 @@ func (h V1) GetOneMetric(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// UpdateMetric загрузить одну митрику.
 func (h V1) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	m := chi.URLParam(r, "metric")
 
@@ -117,6 +120,7 @@ func (h V1) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetOneMetric2 получить одну митрику.
 func (h V1) GetOneMetric2(w http.ResponseWriter, r *http.Request) {
 	l := h.handler.Log.With().Str("v1/metric", "GetOneMetric2").Logger()
 
@@ -184,6 +188,7 @@ func (h V1) GetOneMetric2(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// UpdateMetric2 загрузить батч митрик.
 func (h V1) UpdateMetric2(w http.ResponseWriter, r *http.Request) {
 	l := h.handler.Log.With().Str("v1/metric", "UpdateMetric2").Logger()
 
@@ -244,6 +249,7 @@ func (h V1) UpdateMetric2(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Ping проверка подключения базы данных.
 func (h V1) Ping(w http.ResponseWriter, r *http.Request) {
 	l := h.handler.Log.With().Str("v1/metric", "Ping").Logger()
 
@@ -260,6 +266,7 @@ func (h V1) Ping(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Updates обновить метрику.
 func (h V1) Updates(w http.ResponseWriter, r *http.Request) {
 	l := h.handler.Log.With().Str("v1/metric", "UpdateMetric2").Logger()
 

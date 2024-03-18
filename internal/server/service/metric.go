@@ -65,7 +65,7 @@ func (s Service) GetMetric(ctx context.Context) (string, error) {
 
 	l.Debug().Msgf("data value: %+v", data)
 
-	res := s.parseToHTML(data)
+	res := s.parseToHTML(&data)
 
 	return res, nil
 }
@@ -178,10 +178,10 @@ func (s Service) Updates(ctx context.Context, req []MetricsRequest) error {
 	return nil
 }
 
-func (s Service) parseToHTML(data map[string]memory.Type) string {
+func (s Service) parseToHTML(data *map[string]memory.Type) string {
 	var insert string
 
-	for k, v := range data {
+	for k, v := range *data {
 		var gauge float64
 		var counter int64
 
