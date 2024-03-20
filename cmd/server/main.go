@@ -49,5 +49,4 @@ func main() {
 	if err = server.Run(); err != nil {
 		l.Fatal().Err(err).Msg("server.Run")
 	}
-
 }

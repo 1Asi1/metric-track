@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -184,13 +185,22 @@ func TestV1_GetOneMetric(t *testing.T) {
 	s := httptest.NewServer(router)
 	defer s.Close()
 
+	data := make(map[string]memory.Type)
+	gauge := 1.0
+	counter := int64(1)
+	data["test"] = memory.Type{
+		Gauge:   &gauge,
+		Counter: &counter,
+	}
+	st.Update(context.Background(), "test", data)
+
 	tests := []struct {
 		name string
 		want string
 	}{
 		{
 			name: "positive",
-			want: "name metric not found; problem with m.metric[test]: name metric not found\n",
+			want: "1",
 		},
 	}
 	for _, tt := range tests {

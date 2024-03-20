@@ -46,3 +46,32 @@ func Test_service_GetMetric(t *testing.T) {
 		})
 	}
 }
+
+func TestNew(t *testing.T) {
+	type args struct {
+		cfg config.Config
+		log zerolog.Logger
+	}
+	tests := []struct {
+		name string
+		args args
+		want Service
+	}{
+		{
+			name: "positive",
+			args: args{
+				cfg: config.Config{},
+				log: newLogger(),
+			},
+			want: Service{
+				cfg: config.Config{},
+				log: newLogger(),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, New(tt.args.cfg, tt.args.log), "New(%v, %v)", tt.args.cfg, tt.args.log)
+		})
+	}
+}
