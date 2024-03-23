@@ -17,22 +17,15 @@ import (
 )
 
 var (
-	BuildVersion string
-	BuildDate    string
-	BuildCommit  string
+	BuildVersion = "N/A"
+	BuildDate    = "N/A"
+	BuildCommit  = "N/A"
 )
 
-func getValueOrNA(value string) string {
-	if value == "" {
-		return "N/A"
-	}
-	return value
-}
-
 func main() {
-	fmt.Printf("Build version: %s\n", getValueOrNA(BuildVersion))
-	fmt.Printf("Build date: %s\n", getValueOrNA(BuildDate))
-	fmt.Printf("Build commit: %s\n", getValueOrNA(BuildCommit))
+	fmt.Printf("Build version: %s\n", BuildVersion)
+	fmt.Printf("Build date: %s\n", BuildDate)
+	fmt.Printf("Build commit: %s\n", BuildCommit)
 
 	cfg, err := config.New(logger.NewLogger())
 	if err != nil {
