@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -15,7 +16,17 @@ import (
 	"github.com/rs/zerolog"
 )
 
+var (
+	BuildVersion = "N/A"
+	BuildDate    = "N/A"
+	BuildCommit  = "N/A"
+)
+
 func main() {
+	fmt.Printf("Build version: %s\n", BuildVersion)
+	fmt.Printf("Build date: %s\n", BuildDate)
+	fmt.Printf("Build commit: %s\n", BuildCommit)
+
 	cfg, err := config.New(logger.NewLogger())
 	if err != nil {
 		log.Fatal("config.New")
@@ -49,5 +60,4 @@ func main() {
 	if err = server.Run(); err != nil {
 		l.Fatal().Err(err).Msg("server.Run")
 	}
-
 }
