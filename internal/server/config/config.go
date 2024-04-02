@@ -1,6 +1,7 @@
 package config
 
 import (
+	_ "embed"
 	"flag"
 	"os"
 	"strconv"
@@ -17,6 +18,7 @@ type Config struct {
 	StoreRestore     bool
 	PostgresConnDSN  string
 	SecretKey        string
+	CryptoKey        string
 }
 
 func New(log zerolog.Logger) (Config, error) {
@@ -30,6 +32,7 @@ func New(log zerolog.Logger) (Config, error) {
 	restore := flag.Bool("r", true, "store restore")
 	postgresql := flag.String("d", "", "dsn connecting to postgres")
 	key := flag.String("k", "", "secret key for server")
+	cryptoKey := flag.String("crypto-key", "internal/server/config/ptkey.pem", "crypto key for agent")
 	flag.Parse()
 
 	metricServerAddrEnv, ok := os.LookupEnv("ADDRESS")
@@ -83,6 +86,13 @@ func New(log zerolog.Logger) (Config, error) {
 		cfg.SecretKey = secretKeyEnv
 	} else {
 		cfg.SecretKey = *key
+	}
+
+	cryptoKeyEnv, ok := os.LookupEnv("CRYPTO_KEY")
+	if ok {
+		cfg.CryptoKey = cryptoKeyEnv
+	} else {
+		cfg.CryptoKey = *cryptoKey
 	}
 
 	l.Info().Msgf("store restore: %v", *restore)

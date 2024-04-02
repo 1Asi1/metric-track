@@ -25,7 +25,7 @@ func BenchmarkUpdateMetric2(b *testing.B) {
 	h := rest.Handler{
 		Mux:     router,
 		Service: se}
-	New(h, "")
+	New(h, "", "")
 
 	s := httptest.NewServer(router)
 	defer s.Close()

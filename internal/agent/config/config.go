@@ -22,6 +22,7 @@ type Config struct {
 	ReportInterval   time.Duration
 	SecretKey        string
 	RateLimit        int
+	CryptoKey        string
 }
 
 func New(log zerolog.Logger) (Config, error) {
@@ -34,6 +35,7 @@ func New(log zerolog.Logger) (Config, error) {
 	pull := flag.Int("p", intervalPull, "pull agent interval")
 	key := flag.String("k", "", "secret key for agent")
 	rLimit := flag.Int("l", rateLimit, "pull worker")
+	cryptoKey := flag.String("crypto-key", "internal/agent/config/pbkey.pem", "crypto key for agent")
 	flag.Parse()
 
 	metricServerAddrEnv, ok := os.LookupEnv("ADDRESS")
@@ -87,6 +89,13 @@ func New(log zerolog.Logger) (Config, error) {
 		cfg.RateLimit = rL
 	} else {
 		cfg.RateLimit = *rLimit
+	}
+
+	cryptoKeyEnv, ok := os.LookupEnv("CRYPTO_KEY")
+	if ok {
+		cfg.CryptoKey = cryptoKeyEnv
+	} else {
+		cfg.CryptoKey = *cryptoKey
 	}
 
 	return cfg, nil

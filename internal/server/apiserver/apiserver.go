@@ -58,7 +58,7 @@ func (s *APIServer) Run() error {
 	route := rest.New(s.mux, metricS, s.log)
 
 	route.Mux.Use(midlog.Logger)
-	v1.New(route, s.cfg.SecretKey)
+	v1.New(route, s.cfg.SecretKey, s.cfg.CryptoKey)
 
 	l.Info().Msgf("server start: http://%s", s.cfg.MetricServerAddr)
 	if err := http.ListenAndServe(s.cfg.MetricServerAddr, route.Mux); err != nil {

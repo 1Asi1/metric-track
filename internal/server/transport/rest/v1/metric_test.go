@@ -40,7 +40,7 @@ func TestV1_UpdateMetric(t *testing.T) {
 	h := rest.Handler{
 		Mux:     router,
 		Service: se}
-	New(h, "")
+	New(h, "", "")
 
 	s := httptest.NewServer(router)
 	defer s.Close()
@@ -94,7 +94,7 @@ func TestV1_UpdateMetric2(t *testing.T) {
 	h := rest.Handler{
 		Mux:     router,
 		Service: se}
-	New(h, "")
+	New(h, "", "")
 
 	s := httptest.NewServer(router)
 	defer s.Close()
@@ -141,7 +141,7 @@ func TestV1_GetMetric(t *testing.T) {
 	h := rest.Handler{
 		Mux:     router,
 		Service: se}
-	New(h, "")
+	New(h, "", "")
 
 	s := httptest.NewServer(router)
 	defer s.Close()
@@ -180,7 +180,7 @@ func TestV1_GetOneMetric(t *testing.T) {
 	h := rest.Handler{
 		Mux:     router,
 		Service: se}
-	New(h, "")
+	New(h, "", "")
 
 	s := httptest.NewServer(router)
 	defer s.Close()
@@ -227,7 +227,7 @@ func TestV1_GetOneMetric2(t *testing.T) {
 	h := rest.Handler{
 		Mux:     router,
 		Service: se}
-	New(h, "")
+	New(h, "", "")
 
 	s := httptest.NewServer(router)
 	defer s.Close()
@@ -269,7 +269,7 @@ func TestV1_Ping(t *testing.T) {
 	h := rest.Handler{
 		Mux:     router,
 		Service: se}
-	New(h, "")
+	New(h, "", "")
 
 	s := httptest.NewServer(router)
 	defer s.Close()
@@ -301,7 +301,7 @@ func TestV1_Updates(t *testing.T) {
 	h := rest.Handler{
 		Mux:     router,
 		Service: se}
-	New(h, "")
+	New(h, "", "")
 
 	s := httptest.NewServer(router)
 	defer s.Close()

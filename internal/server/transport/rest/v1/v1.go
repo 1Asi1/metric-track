@@ -11,13 +11,15 @@ type V1 struct {
 	handler   rest.Handler
 	service   service.Service
 	secretKey string
+	cryptoKey string
 }
 
-func New(h rest.Handler, secretKey string) {
+func New(h rest.Handler, secretKey, cryptoKey string) {
 	v1 := V1{
 		handler:   h,
 		service:   h.Service,
 		secretKey: secretKey,
+		cryptoKey: cryptoKey,
 	}
 
 	v1.handler.Mux.Use(middleware.GzipMiddleware)
