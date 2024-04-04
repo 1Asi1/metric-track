@@ -1,7 +1,11 @@
 package apiserver
 
 import (
+	"context"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/1Asi1/metric-track.git/internal/server/config"
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
@@ -60,11 +64,25 @@ func (s *APIServer) Run() error {
 	route.Mux.Use(midlog.Logger)
 	v1.New(route, s.cfg.SecretKey, s.cfg.CryptoKey)
 
+	var srv = http.Server{Addr: s.cfg.MetricServerAddr}
+	idleConnsClosed := make(chan struct{})
+	sigint := make(chan os.Signal, 1)
+	signal.Notify(sigint, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	go func() {
+		<-sigint
+		if err := srv.Shutdown(context.Background()); err != nil {
+			l.Error().Err(err).Msgf("HTTP server Shutdown: %v", err)
+		}
+		close(idleConnsClosed)
+	}()
+
 	l.Info().Msgf("server start: http://%s", s.cfg.MetricServerAddr)
-	if err := http.ListenAndServe(s.cfg.MetricServerAddr, route.Mux); err != nil {
+	srv.Handler = route.Mux
+	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 		l.Error().Err(err).Msg("http.ListenAndServe")
 		return err
 	}
-
+	<-idleConnsClosed
+	l.Info().Msg("Server Shutdown gracefully")
 	return nil
 }

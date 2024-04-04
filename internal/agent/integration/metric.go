@@ -3,6 +3,7 @@ package integration
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
@@ -48,7 +49,7 @@ func New(cfg config.Config, s service.Service, log zerolog.Logger) *Client {
 	}
 }
 
-func (c *Client) SendMetricPeriodic() {
+func (c *Client) SendMetricPeriodic(ctx context.Context) {
 	l := c.log.With().Str("integration", "SendMetricPeriodic").Logger()
 
 	var count int
@@ -65,7 +66,7 @@ func (c *Client) SendMetricPeriodic() {
 		go func(job chan data, counter chan int) {
 			for j := range job {
 				ct := <-counter
-				if err := c.sendToServerBatch(j, ct); err != nil {
+				if err := c.sendToServerBatch(ctx, j, ct); err != nil {
 					l.Error().Err(err).Msgf("c.sendToServerBatch")
 					return
 				}
@@ -91,7 +92,7 @@ func (c *Client) SendMetricPeriodic() {
 	}
 }
 
-func (c *Client) sendToServerBatch(req map[string]any, count int) error {
+func (c *Client) sendToServerBatch(ctx context.Context, req map[string]any, count int) error {
 	metrics := make([]MetricsRequest, 2)
 	for k, v := range req {
 		metrics[0] = MetricsRequest{
@@ -151,6 +152,7 @@ func (c *Client) sendToServerBatch(req map[string]any, count int) error {
 	_ = gz.Close()
 
 	request := c.http.R().SetHeader("Content-Type", "application/json")
+	request.SetContext(ctx)
 	request.SetHeader("Content-Encoding", "gzip")
 
 	request.SetBody(&buf)
