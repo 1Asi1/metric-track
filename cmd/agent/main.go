@@ -45,5 +45,5 @@ func main() {
 	}()
 
 	<-ctx.Done()
-	l.Info().Msg("Agent Shutdown gracefully")
+	l.Info().Msg("Start agent shutdown gracefully...")
 }

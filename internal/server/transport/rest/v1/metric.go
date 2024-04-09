@@ -296,20 +296,12 @@ func (h V1) Updates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, err := os.OpenFile(h.cryptoKey, os.O_RDONLY, 0644)
+	data, err := os.ReadFile(h.cryptoKey)
 	if err != nil {
-		panic(err)
-	}
-	defer func() { _ = file.Close() }()
-
-	key := make([]byte, 4096)
-	_, err = file.Read(key)
-	if err != nil {
-		l.Error().Err(err).Msg("file.Read")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		l.Error().Err(err).Msg("os.ReadFile")
 	}
 
-	block, rest := pem.Decode(key)
+	block, rest := pem.Decode(data)
 	if block == nil {
 		fmt.Println("Failed to decode PEM block")
 		if rest != nil {

@@ -83,6 +83,6 @@ func (s *APIServer) Run() error {
 		return err
 	}
 	<-idleConnsClosed
-	l.Info().Msg("Server Shutdown gracefully")
+	l.Info().Msg("Start server shutdown gracefully...")
 	return nil
 }
