@@ -74,22 +74,24 @@ func (c *Client) SendMetricPeriodic(ctx context.Context) {
 		}(job, counter)
 	}
 
-	for {
-		select {
-		case <-tickerPool.C:
-			res = c.service.GetMetric()
-			count++
-			res.Type["RandomValue"] = random.ExpFloat64()
-		case <-tickerRep.C:
-			for k, v := range res.Type {
-				req := make(data, 1)
-				req[k] = v
-				job <- req
-				counter <- count
+	go func() {
+		for {
+			select {
+			case <-tickerPool.C:
+				res = c.service.GetMetric()
+				count++
+				res.Type["RandomValue"] = random.ExpFloat64()
+			case <-tickerRep.C:
+				for k, v := range res.Type {
+					req := make(data, 1)
+					req[k] = v
+					job <- req
+					counter <- count
+				}
+				count = 0
 			}
-			count = 0
 		}
-	}
+	}()
 }
 
 func (c *Client) sendToServerBatch(ctx context.Context, req map[string]any, count int) error {

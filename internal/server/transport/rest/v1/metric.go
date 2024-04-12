@@ -299,6 +299,7 @@ func (h V1) Updates(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile(h.cryptoKey)
 	if err != nil {
 		l.Error().Err(err).Msg("os.ReadFile")
+		return
 	}
 
 	block, rest := pem.Decode(data)
