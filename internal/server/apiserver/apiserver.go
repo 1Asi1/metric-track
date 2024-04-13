@@ -1,7 +1,13 @@
 package apiserver
 
 import (
+	"context"
 	"net/http"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
 
 	"github.com/1Asi1/metric-track.git/internal/server/config"
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
@@ -12,6 +18,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	midlog "github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog"
+)
+
+const (
+	timeoutServerShutdown = time.Second * 5
 )
 
 type APIServer struct {
@@ -58,13 +68,34 @@ func (s *APIServer) Run() error {
 	route := rest.New(s.mux, metricS, s.log)
 
 	route.Mux.Use(midlog.Logger)
-	v1.New(route, s.cfg.SecretKey)
+	v1.New(route, s.cfg.SecretKey, s.cfg.CryptoKey)
+
+	var srv = http.Server{Addr: s.cfg.MetricServerAddr}
+	sigint := make(chan os.Signal, 1)
+	signal.Notify(sigint, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+
+	wg := &sync.WaitGroup{}
+	defer func() {
+		wg.Wait()
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer l.Info().Msg("server has been shutdown")
+		defer wg.Done()
+		<-sigint
+		shutdownTimeoutCtx, cancelShutdownTimeoutCtx := context.WithTimeout(context.Background(), timeoutServerShutdown)
+		defer cancelShutdownTimeoutCtx()
+		if err := srv.Shutdown(shutdownTimeoutCtx); err != nil {
+			l.Err(err).Msg("an error occurred during server shutdown")
+		}
+	}()
 
 	l.Info().Msgf("server start: http://%s", s.cfg.MetricServerAddr)
-	if err := http.ListenAndServe(s.cfg.MetricServerAddr, route.Mux); err != nil {
+	srv.Handler = route.Mux
+	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 		l.Error().Err(err).Msg("http.ListenAndServe")
 		return err
 	}
-
 	return nil
 }

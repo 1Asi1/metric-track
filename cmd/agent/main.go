@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 
 	"github.com/1Asi1/metric-track.git/internal/agent/config"
 	"github.com/1Asi1/metric-track.git/internal/agent/integration"
@@ -33,5 +38,17 @@ func main() {
 	s := service.New(cfg, l)
 	c := integration.New(cfg, s, l)
 
-	c.SendMetricPeriodic()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	wg := &sync.WaitGroup{}
+	defer func() {
+		wg.Wait()
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer l.Info().Msg("agent has been shutdown")
+		<-ctx.Done()
+	}()
+	c.SendMetricPeriodic(ctx)
 }

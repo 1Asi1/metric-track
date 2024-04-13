@@ -2,11 +2,16 @@ package v1
 
 import (
 	"compress/gzip"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
@@ -270,7 +275,6 @@ func (h V1) Ping(w http.ResponseWriter, r *http.Request) {
 func (h V1) Updates(w http.ResponseWriter, r *http.Request) {
 	l := h.handler.Log.With().Str("v1/metric", "UpdateMetric2").Logger()
 
-	var req []service.MetricsRequest
 	var reader io.Reader
 	if r.Header.Get("Content-Encoding") == "gzip" {
 		gz, err := gzip.NewReader(r.Body)
@@ -292,7 +296,35 @@ func (h V1) Updates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = json.Unmarshal(body, &req)
+	data, err := os.ReadFile(h.cryptoKey)
+	if err != nil {
+		l.Error().Err(err).Msg("os.ReadFile")
+		return
+	}
+
+	block, rest := pem.Decode(data)
+	if block == nil {
+		fmt.Println("Failed to decode PEM block")
+		if rest != nil {
+			fmt.Printf("Remaining data after PEM block: %s\n", rest)
+		}
+		return
+	}
+
+	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		l.Error().Err(err).Msg(" x509.ParsePKCS1PrivateKey")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	encrypteData, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, body)
+	if err != nil {
+		l.Error().Err(err).Msg(" rsa.DecryptPKCS1v15")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	var req []service.MetricsRequest
+	err = json.Unmarshal(encrypteData, &req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
