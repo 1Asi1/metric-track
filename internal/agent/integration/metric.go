@@ -153,7 +153,9 @@ func (c *Client) sendToServerBatch(ctx context.Context, req map[string]any, coun
 	}
 	_ = gz.Close()
 
-	request := c.http.R().SetHeader("Content-Type", "application/json")
+	request := c.http.R().
+		SetHeader("Content-Type", "application/json").
+		SetHeader("X-Real-IP", c.http.BaseURL)
 	request.SetContext(ctx)
 	request.SetHeader("Content-Encoding", "gzip")
 

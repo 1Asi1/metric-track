@@ -18,6 +18,7 @@ type ConfigFile struct {
 	StoreRestore     bool   `json:"restore"`
 	PostgresConnDSN  string `json:"database_dsn"`
 	CryptoKey        string `json:"crypto_key"`
+	TrustedSubnet    string `json:"trusted_subnet"`
 }
 
 type Config struct {
@@ -29,6 +30,7 @@ type Config struct {
 	PostgresConnDSN  string
 	SecretKey        string
 	CryptoKey        string
+	TrustedSubnet    string
 }
 
 func New(log zerolog.Logger) (Config, error) {
@@ -43,6 +45,7 @@ func New(log zerolog.Logger) (Config, error) {
 	postgresql := flag.String("d", "", "dsn connecting to postgres")
 	key := flag.String("k", "", "secret key for server")
 	cryptoKey := flag.String("crypto-key", "", "crypto key for agent")
+	trusted := flag.String("t", "", "trusted-subnet")
 	flag.Parse()
 
 	var cfgPathName string
@@ -144,6 +147,16 @@ func New(log zerolog.Logger) (Config, error) {
 		cfg.CryptoKey = *cryptoKey
 		if cfg.CryptoKey == "" {
 			cfg.CryptoKey = cfgFileData.CryptoKey
+		}
+	}
+
+	trustedSubnetEnv, ok := os.LookupEnv("TRUSTED_SUBNET")
+	if ok {
+		cfg.TrustedSubnet = trustedSubnetEnv
+	} else {
+		cfg.TrustedSubnet = *trusted
+		if cfg.TrustedSubnet == "" {
+			cfg.TrustedSubnet = cfgFileData.TrustedSubnet
 		}
 	}
 
