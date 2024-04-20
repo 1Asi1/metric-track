@@ -22,6 +22,7 @@ type ConfigFile struct {
 	PollInterval     string `json:"poll_interval"`
 	ReportInterval   string `json:"report_interval"`
 	CryptoKey        string `json:"crypto_key"`
+	GrpcAddr         string `json:"grpc_addr"`
 }
 
 type Config struct {
@@ -31,6 +32,7 @@ type Config struct {
 	SecretKey        string
 	RateLimit        int
 	CryptoKey        string
+	ServerGrpcAddr   string
 }
 
 func New(log zerolog.Logger) (Config, error) {
@@ -43,6 +45,7 @@ func New(log zerolog.Logger) (Config, error) {
 	key := flag.String("k", "", "secret key for agent")
 	rLimit := flag.Int("l", rateLimit, "pull worker")
 	cryptoKey := flag.String("crypto-key", "internal/agent/config/pbkey.pem", "crypto key for agent")
+	grpc := flag.String("g", "127.0.0.1:8083", "grpc address")
 	flag.Parse()
 
 	var cfgPathName string
@@ -144,6 +147,16 @@ func New(log zerolog.Logger) (Config, error) {
 		cfg.CryptoKey = *cryptoKey
 		if cfg.CryptoKey == "" {
 			cfg.CryptoKey = cfgFileData.CryptoKey
+		}
+	}
+
+	grpcEnv, ok := os.LookupEnv("CONTENT_GRPC_ADDR")
+	if ok {
+		cfg.ServerGrpcAddr = grpcEnv
+	} else {
+		cfg.ServerGrpcAddr = *grpc
+		if cfg.ServerGrpcAddr == "" {
+			cfg.ServerGrpcAddr = cfgFileData.GrpcAddr
 		}
 	}
 

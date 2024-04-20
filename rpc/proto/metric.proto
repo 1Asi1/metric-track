@@ -1,0 +1,23 @@
+syntax = "proto3";
+package metric_grpc;
+
+option go_package = "rpc/proto";
+
+service metricGrpc{
+  rpc Updates(UpdatesRequest)returns(UpdatesResponse);
+}
+
+message UpdatesRequest{
+repeated Metric Metrics = 1;
+}
+
+message UpdatesResponse{
+  string error = 1;
+}
+
+message Metric{
+  string MType = 1;
+  int64 Delta = 2;
+  double Value = 3;
+  string ID = 4;
+}

@@ -20,8 +20,11 @@ import (
 
 	"github.com/1Asi1/metric-track.git/internal/agent/config"
 	"github.com/1Asi1/metric-track.git/internal/agent/service"
+	proto "github.com/1Asi1/metric-track.git/rpc/gen"
 	"github.com/go-resty/resty/v2"
 	"github.com/rs/zerolog"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type MetricsRequest struct {
@@ -36,16 +39,28 @@ type Client struct {
 	http    *resty.Client
 	log     zerolog.Logger
 	cfg     config.Config
+	grpc    proto.MetricGrpcClient
 }
 
 func New(cfg config.Config, s service.Service, log zerolog.Logger) *Client {
 	client := resty.New()
 	client.SetTimeout(10 * time.Second)
+
+	contentConnDialCtx, contentConnDialCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer contentConnDialCancel()
+
+	clientConn, err := grpc.DialContext(contentConnDialCtx, cfg.ServerGrpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Err(err).Msgf("grpc.Dial error: %v", err)
+	}
+
+	grpcClient := proto.NewMetricGrpcClient(clientConn)
 	return &Client{
 		cfg:     cfg,
 		service: s,
 		http:    client,
 		log:     log,
+		grpc:    grpcClient,
 	}
 }
 
@@ -68,6 +83,10 @@ func (c *Client) SendMetricPeriodic(ctx context.Context) {
 				ct := <-counter
 				if err := c.sendToServerBatch(ctx, j, ct); err != nil {
 					l.Error().Err(err).Msgf("c.sendToServerBatch")
+					return
+				}
+				if err := c.sendToServerBatchGrpc(ctx, j, ct); err != nil {
+					l.Error().Err(err).Msgf("c.sendToServerBatchGrpc")
 					return
 				}
 			}
@@ -181,6 +200,30 @@ func (c *Client) sendToServerBatch(ctx context.Context, req map[string]any, coun
 
 	if resp.StatusCode() != http.StatusOK {
 		return fmt.Errorf("expected status %d, got: %d", http.StatusOK, resp.StatusCode())
+	}
+
+	return nil
+}
+
+func (c *Client) sendToServerBatchGrpc(ctx context.Context, req map[string]any, count int) error {
+	metrics := make([]*proto.Metric, 2)
+	for k, v := range req {
+		metrics[0] = &proto.Metric{
+			ID:    k,
+			MType: "gauge",
+			Value: v.(float64),
+		}
+
+		metrics[1] = &proto.Metric{
+			ID:    k,
+			MType: "counter",
+			Delta: int64(count),
+		}
+	}
+
+	_, err := c.grpc.Updates(ctx, &proto.UpdatesRequest{Metrics: []*proto.Metric{}}, nil)
+	if err != nil {
+		return err
 	}
 
 	return nil
