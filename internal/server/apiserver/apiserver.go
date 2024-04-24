@@ -102,7 +102,10 @@ func (s *APIServer) Run() error {
 			l.Err(err).Msgf("net.Listen error: %v; GrpcPort: %v", err, s.cfg.GrpcPort)
 		}
 
-		grpcServer := grpc.NewServer()
+		grpcServer := grpc.NewServer(
+			grpc.UnaryInterceptor(metric_grpc.CheckSubnetInterceptor(s.cfg.TrustedSubnet)),
+			grpc.UnaryInterceptor(metric_grpc.HMACInterceptor(s.cfg.SecretKey)),
+		)
 		proto.RegisterMetricGrpcServer(grpcServer, metric_grpc.NewMetricGrpcServer(metricS))
 
 		if err = grpcServer.Serve(grpcConn); err != nil {
