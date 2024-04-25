@@ -2,6 +2,8 @@ package apiserver
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,11 +15,14 @@ import (
 	"github.com/1Asi1/metric-track.git/internal/server/repository/memory"
 	"github.com/1Asi1/metric-track.git/internal/server/repository/storage"
 	"github.com/1Asi1/metric-track.git/internal/server/service"
+	metric_grpc "github.com/1Asi1/metric-track.git/internal/server/transport/grpc"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest"
 	"github.com/1Asi1/metric-track.git/internal/server/transport/rest/v1"
+	proto "github.com/1Asi1/metric-track.git/rpc/gen"
 	"github.com/go-chi/chi/v5"
 	midlog "github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -88,6 +93,23 @@ func (s *APIServer) Run() error {
 		defer cancelShutdownTimeoutCtx()
 		if err := srv.Shutdown(shutdownTimeoutCtx); err != nil {
 			l.Err(err).Msg("an error occurred during server shutdown")
+		}
+	}()
+
+	go func() {
+		grpcConn, err := net.Listen("tcp", fmt.Sprintf(":%v", s.cfg.GrpcPort))
+		if err != nil {
+			l.Err(err).Msgf("net.Listen error: %v; GrpcPort: %v", err, s.cfg.GrpcPort)
+		}
+
+		grpcServer := grpc.NewServer(
+			grpc.UnaryInterceptor(metric_grpc.CheckSubnetInterceptor(s.cfg.TrustedSubnet)),
+			grpc.UnaryInterceptor(metric_grpc.HMACInterceptor(s.cfg.SecretKey)),
+		)
+		proto.RegisterMetricGrpcServer(grpcServer, metric_grpc.NewMetricGrpcServer(metricS))
+
+		if err = grpcServer.Serve(grpcConn); err != nil {
+			l.Err(err).Msgf("grpcServer.Serve error: %v; GrpcPort: %v", err, s.cfg.GrpcPort)
 		}
 	}()
 

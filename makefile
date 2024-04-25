@@ -29,3 +29,11 @@ _golangci-lint-rm-unformatted-report: _golangci-lint-format-report
 .PHONY: golangci-lint-clean
 golangci-lint-clean:
 	sudo rm -rf ./golangci-lint
+
+.gen:
+	protoc --go_out=rpc/gen --proto_path=rpc/proto rpc/proto/metric.proto --go_opt=paths=source_relative \
+		--go-grpc_out=rpc/gen --proto_path=rpc/proto rpc/proto/metric.proto --go-grpc_opt=paths=source_relative
+
+	protoc-go-inject-tag -remove_tag_comment -input="./rpc/gen/*.pb.go"
+
+	mockgen -source=rpc/gen/metric_grpc.pb.go -destination=rpc/mock/metric_mock.go -package=metricmock

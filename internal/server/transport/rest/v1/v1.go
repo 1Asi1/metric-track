@@ -34,6 +34,6 @@ func (h V1) registerV1Route() {
 		r.Post("/update/{metric}/{name}/{value}", middleware.HMACMiddleware(h.UpdateMetric, h.secretKey))
 		r.Post("/value/", h.GetOneMetric2)
 		r.Post("/update/", middleware.HMACMiddleware(h.UpdateMetric2, h.secretKey))
-		r.Post("/updates/", middleware.HMACMiddleware(h.Updates, h.secretKey))
+		r.Post("/updates/", middleware.CheckSubnetMiddleware(middleware.HMACMiddleware(h.Updates, h.secretKey), ""))
 	})
 }
